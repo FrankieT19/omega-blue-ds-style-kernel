@@ -10,6 +10,7 @@
 typedef struct {
     u32 checksum, page, view, offset, row, start_item, featured;
     u32 virtual_mode, parent_offset, parent_row, favourite;
+    u32 nor_state_key;
     u16 offsets[100], rows[100];
     char folder[MAX_path_len];
     char game[512];

@@ -66,7 +66,7 @@ void IWRAM_CODE Write(u32 romaddress, const u8* buffer, u32 size)
 		SetPSRampage(page);
 		
 		for(x=0;x<size/2;x++)
-			((vu16*)(PSRAMBase_S98 + Address))[x] = ((vu16*)buffer)[x];//todo »¹Òª´¦Àípsram page
+			((vu16*)(PSRAMBase_S98 + Address))[x] = ((vu16*)buffer)[x];//todo è¿˜è¦å¤„ç†psram page
 			
 		SetPSRampage(0);
 	}
@@ -254,7 +254,7 @@ void IWRAM_CODE PatchInternal(u32* Data,int iSize,u32 offset)
     {
       case 0x3007FFC: // IRQ handler
         {
-          Add2(ii, 0x3007FF4);//0x3007FFCµÄÎ»ÖÃ
+          Add2(ii, 0x3007FF4);//0x3007FFCçš„ä½ç½®
         }
         break;
       case 0x3FFFFFC: // IRQ handler
@@ -400,7 +400,7 @@ void Patch_Reset_Sleep(u32 *Data)
   u32 Return_address_offset = p_patch_Return_address_L-p_patch_start;
 
   dmaCopy((void*)p_patch_start,patchbuffer, p_patch_end-p_patch_start);
-  *(vu32*)(patchbuffer+Return_address_offset) = Return_address;//ÐÞ¸Ägba_sleep_patch_binÀïÃæµÄ·µ»ØµØÖ·
+  *(vu32*)(patchbuffer+Return_address_offset) = Return_address;//ä¿®æ”¹gba_sleep_patch_biné‡Œé¢çš„è¿”å›žåœ°å€
 
 	u16 read5 = Read_SET_info(assress_edit_sleephotkey_0); 
 	u16 read6 = Read_SET_info(assress_edit_sleephotkey_1); 
@@ -480,12 +480,16 @@ void Patch_RTS_Cheat(u32 *Data,u32 gamerompage)
 
 	//rts switch
 	u32 rts_switch_offset = (u8*)RTS_switch - p_patch_start;
-	*(vu32*)(patchbuffer+rts_switch_offset) = gl_rts_on;
+	const u32 nor_state = is_NORpatch ? blue_nor_write_state_key : 0;
+	*(vu32*)(patchbuffer+rts_switch_offset) = is_NORpatch ? (nor_state ? 2 : 0) : gl_rts_on;
+	extern const u8 Blue_NOR_RTS_Key[];
+	*(vu32*)(patchbuffer + (Blue_NOR_RTS_Key - p_patch_start)) = nor_state;
 
 	u32 RTS_file_FAT_offset = (u8*)RTS_file_FAT - p_patch_start;
 	
 
-  dmaCopy((void*)FAT_table_P,patchbuffer+RTS_file_FAT_offset, 0x40); 
+  if(is_NORpatch) memset(patchbuffer+RTS_file_FAT_offset, 0, 0x40);
+  else dmaCopy((void*)FAT_table_P,patchbuffer+RTS_file_FAT_offset, 0x40);
 
  	u32 SecortPcluster_offset = (u8*)SecortPcluster - p_patch_start;
  	*(vu32*)(patchbuffer+SecortPcluster_offset) = FAT_table_buffer[0x1F8/4];

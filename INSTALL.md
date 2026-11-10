@@ -1,4 +1,4 @@
-# DS Style v8.1 Blue Test 1
+# DS Style v8.1 Blue Test 2
 
 ## Before installing
 
@@ -42,6 +42,21 @@ on a cart with anything in NOR that you cannot replace.
    can initialise its allocation table. The test refuses to write if the
    allocation table and game records disagree. Do not format NOR to work
    around this on a cart that contains anything you want to keep.
+6. Open a `.txt`, `.md` and `.markdown` file. Check that the correct file
+   opens and that **B** returns to DS Style. Optional Blue-compatible
+   PogoShell plugins go in `SYSTEM/PLUG/BLUE`, named for the file extension.
+   Do not copy your old cartridge's plugin directory into this folder.
+7. Under **Settings > Interface > Load style**, try preparing a copy of
+   this test's `ezbluekernel.bin` from `SYSTEM/KERNELS`. Also verify that a
+   kernel for an older cart is rejected. The previous SD kernel file is
+   retained as `ezbluekernel.bak`; it is not an automatic firmware rollback.
+   If the card is removed during preparation and the root kernel file is
+   missing, restore it from your PC backup before holding R to update.
+8. For a new disposable NOR game written **with add-ons** and **Save states**
+   enabled, try Save state, Load state, then **Exit game**. Return all the
+   way to the launcher before switching off. Relaunch the same NOR entry
+   and check that its state loads. The state is saved to the SD card only
+   when you exit the game back to DS Style. Test this in **Mode A**.
 
 To try an existing battery save, **copy** that save from stock's root
 `SAVER` folder into `SYSTEM/SAVER` on the test card. Keep the original.
@@ -49,15 +64,28 @@ Do not move or import stock save states into the test.
 
 ## Limitations
 
-- NOR save-state add-ons are disabled because installed NOR patches can
-  retain stale SD sector addresses. Existing NOR entries with that type
-  of add-on are blocked in this test; use the official kernel for them.
+- Older NOR entries with embedded SD sector addresses are not launched by
+  this test. Keep them intact and use the official Blue kernel for them,
+  or rewrite a disposable copy with this build to test the new save-state
+  path. NOR states are separate from SD-game and stock states. Before going
+  back to stock, remove the test add-on entries written to NOR if you do not
+  need them; reinstalling stock does not remove them.
 - ROMs over 32 MiB are clean-boot only and must use Blue's supported
   large-ROM format. Native NES uses the Blue stock emulator.
-- PogoShell plugins, the text viewer and Load style are not available in
-  this test. The current Customiser and browser installer are not for Blue.
+- Load style accepts DS Style kernels built for this Blue layout. The
+  current Customiser and browser installer are not for Blue. Third-party
+  plugins may still need their exit code adapted for Blue.
 - Hardware verification is still needed for install and rollback, FRAM,
   Mode B, 64 MiB ROMs, NOR writes and the physical warm-return path.
+
+## Report a problem
+
+In a [GitHub issue](https://github.com/FrankieT19/omega-blue-ds-style-kernel/issues),
+include the test version, console, stock firmware, SD format, and the steps
+to reproduce it. For games, note SD or NOR, clean boot or add-ons, the game
+title, and whether you can reproduce it on stock. For plugins, include the
+file extension and whether the bundled viewer or a third-party plugin was
+used. Do not attach ROMs or personal saves.
 
 ## Uninstall or recover
 

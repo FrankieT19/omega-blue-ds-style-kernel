@@ -322,6 +322,8 @@ void Check_NOR_flash(void)
 }
 
 //-----------------------------------------------------------
+u32 blue_nor_write_state_key;
+
 u32 IWRAM_CODE Loadfile2NOR(TCHAR *filename, u32 NORaddress,u16 have_patch,u8 SAVEMODE,u16 flag_64MBrom)
 {
 	u32 res;
@@ -394,11 +396,13 @@ u32 IWRAM_CODE Loadfile2NOR(TCHAR *filename, u32 NORaddress,u16 have_patch,u8 SA
 				
 		tmpNorFS.filesize = fileneedsize;
 		tmpNorFS.have_patch = have_patch ? 2 : 0;
-		tmpNorFS.have_RTS = gl_rts_on;
+		tmpNorFS.have_RTS = have_patch && gl_rts_on == 1 ? 2 : 0;
+		tmpNorFS.reserved2 = tmpNorFS.have_RTS ? 0x4252 : 0;
 		tmpNorFS.is_64MBrom = flag_64MBrom;
 		tmpNorFS.savemode = SAVEMODE;
 		
 		snprintf(tmpNorFS.filename,sizeof(tmpNorFS.filename),"%s",filename);
+		blue_nor_write_state_key = tmpNorFS.have_RTS ? Blue_NORStateKey(&tmpNorFS) : 0;
 		dmaCopy(&tmpNorFS,&pNorFS[game_total_NOR], sizeof(FM_NOR_FS));
  
 		Clear(60,160-15,120,15,gl_color_cheat_black,1);	

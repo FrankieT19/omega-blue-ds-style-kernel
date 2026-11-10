@@ -262,8 +262,30 @@ extern u16 gl_ingame_RTC_open_status;
 void IWRAM_CODE SetRompageWithHardReset(u16 page,u32 bootmode)
 {
 	Set_RTC_status(gl_ingame_RTC_open_status);
+	if(bootmode >= 2 && bootmode <= 4) REG_IME = 0;
 	SetRompage_MODE(page,SYSTEM_MODE_GAME);
-	RegisterRamReset(RESET_EWRAM|RESET_PALETTE| RESET_VRAM|RESET_OAM |RESET_SIO | RESET_SOUND | RESET_OTHER);
+	const u32 reset_flags = RESET_PALETTE | RESET_VRAM | RESET_OAM | RESET_SIO | RESET_SOUND | RESET_OTHER;
+	if(bootmode >= 2 && bootmode <= 4)
+	{
+		/* Keep the argument block and the document pointer below it. */
+		for(vu32 *p = (vu32*)0x02000000; p < (vu32*)0x0203fbf8; ++p) *p = 0;
+		RegisterRamReset(reset_flags);
+		if(bootmode == 3) SoftReset_now();
+		else
+		{
+			if(bootmode == 2)
+				dmaCopy((void*)0x08000000, (void*)0x02000000, *(vu32*)0x0203fbfc & 0x7ffffff);
+			else
+			{
+				register u32 src __asm__("r0") = 0x08000000;
+				register u32 dst __asm__("r1") = 0x02000000;
+				__asm__ volatile("swi 0x11" : "+r"(src), "+r"(dst) :: "r2", "r3", "memory");
+			}
+			((void(*)(void))0x02000000)();
+		}
+		for(;;) {}
+	}
+	RegisterRamReset(RESET_EWRAM | reset_flags);
 	if(bootmode==1){
 		HardReset();
 	}
@@ -664,12 +686,14 @@ static const u32 crc32tab[] = {
  0xb3667a2eL, 0xc4614ab8L, 0x5d681b02L, 0x2a6f2b94L,
  0xb40bbe37L, 0xc30c8ea1L, 0x5a05df1bL, 0x2d02ef8dL 
 };
+u32 Blue_CRC32Update(u32 crc, const u8 *buf, u32 size)
+{
+	for (u32 i = 0; i < size; i++)
+		crc = crc32tab[(crc ^ buf[i]) & 0xff] ^ (crc >> 8);
+	return crc;
+}
+
 u32 crc32(unsigned char *buf, u32 size)
 {
-	u32 i, crc;
-	crc = 0xFFFFFFFF;
-	for (i = 0; i < size; i++)
-		crc = crc32tab[(crc ^ buf[i]) & 0xff] ^ (crc >> 8);
-		
-	return crc^0xFFFFFFFF;
+	return Blue_CRC32Update(0xffffffff, buf, size) ^ 0xffffffff;
 }

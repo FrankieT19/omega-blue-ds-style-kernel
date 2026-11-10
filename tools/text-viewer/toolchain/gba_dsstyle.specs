@@ -1,0 +1,2 @@
+*startfile:
+gba_crt0_dsstyle%O%s crti%O%s crtbegin%O%s

@@ -4,11 +4,11 @@ DS Style is a Nintendo DS-inspired kernel for the EZ-FLASH Omega family.
 This repository is for the **blue PCB marked EZODE-B** only. It is not for
 the earlier Omega Definitive Edition Rev A or Rev B, or the original Omega.
 
-**v8.1 Blue Test 1 is experimental and has not yet been verified on a
+**v8.1 Blue Test 2 is experimental and has not yet been verified on a
 physical EZODE-B.** Use a spare SD card, back up your saves and NOR data, and
 keep the official Blue kernel on a separate card before installing.
 
-- [Test releases](https://github.com/FrankieT19/omega-blue-ds-style-kernel/releases)
+- [Download Blue Test 2](https://github.com/FrankieT19/omega-blue-ds-style-kernel/releases/tag/v8.1-blue-test.2)
 - [Installation, testing and uninstallation](INSTALL.md)
 - [DS Style project page](https://frankiet19.github.io/omega-de-ds-style-kernel/project/)
 - [Original Omega Definitive Edition](https://github.com/FrankieT19/omega-de-ds-style-kernel)
@@ -34,6 +34,8 @@ python tools/build.py
 Use `--flashable` to name the checked output `build/ezbluekernel.bin` for a
 physical Blue hardware test. Do not run the original stock link step on
 this payload: it would overwrite the part of the port above 1 MiB.
+The same command builds `build/txt.bin`, the Blue text viewer. Install
+copies under `SYSTEM/PLUG/BLUE` as `txt.bin`, `md.bin` and `markdown.bin`.
 
 ## Credits
 

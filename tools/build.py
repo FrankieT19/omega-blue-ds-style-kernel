@@ -56,6 +56,36 @@ def pack(payload, vendor):
     return image
 
 
+def symbols(nm, path):
+    found = {}
+    for line in subprocess.check_output([str(nm), "-n", str(path)], text=True).splitlines():
+        parts = line.split()
+        if len(parts) == 3:
+            found[parts[2]] = int(parts[0], 16)
+    return found
+
+
+def build_text_viewer(run, gcc, objcopy, gbafix, arch, gba, output):
+    source = ROOT / "tools/text-viewer/source"
+    toolchain = source.parent / "toolchain"
+    objects = []
+    for name in ("main.c", "return_to_ds_style.s"):
+        obj = output / f"text-{Path(name).stem}.o"
+        run(gcc, *arch, "-Os", "-ffunction-sections", "-fdata-sections",
+            "-I", gba / "include", "-c", source / name, "-o", obj)
+        objects.append(obj)
+    crt = output / "gba_crt0_dsstyle.o"
+    run(gcc, *arch, "-c", toolchain / "gba_crt0_dsstyle.s", "-o", crt)
+    elf, rom = output / "text-viewer.elf", output / "txt.bin"
+    run(gcc, *arch, "-B" + str(output) + os.sep,
+        "-specs=" + str(toolchain / "gba_dsstyle.specs"), "-T", toolchain / "gba_cart_dsstyle.ld",
+        "-Wl,--gc-sections", *objects, "-L", gba / "lib", "-lgba", "-o", elf)
+    run(objcopy, "-O", "binary", elf, rom)
+    run(gbafix, rom, "-tDS STYLE TXT", "-cDSTV", "-m01")
+    if not 0xc0 < rom.stat().st_size < 0x20000:
+        raise RuntimeError("Unexpected text viewer size")
+
+
 def build(sdk, flashable):
     source, images, output = ROOT / "source", ROOT / "images", ROOT / "build"
     output.mkdir(exist_ok=True)
@@ -86,17 +116,23 @@ def build(sdk, flashable):
     elf, rom = output/"ezbluekernel.elf", output/"ezbluekernel.gba"
     run(gcc,*arch,"-specs=gba.specs","-Wl,-Map,"+str(output/"ezbluekernel.map"),
         *sorted(objects),"-L",gba/"lib","-lmm","-lgba","-o",elf)
+    regions = symbols(nm, elf)
+    if regions["__eheap_start"] >= 0x0203f800 or regions["__iwram_overlay_end"] >= 0x03006f00:
+        raise RuntimeError("Kernel leaves too little RAM for its boot and IRQ scratch")
+    patch = symbols(nm, output / "gba_rts_patch.o")
+    if not 0 < patch["DDR_OP_code_end"] - patch["DDR_OP_code"] <= 0x7f0:
+        raise RuntimeError("Blue add-on DDR helper overlaps the return cookie")
     run(objcopy,"-O","binary",elf,rom)
-    run(executable(sdk/"tools/bin","gbafix"),rom,"-tDSBLUE","-c0000","-m00")
+    gbafix = executable(sdk/"tools/bin", "gbafix")
+    run(gbafix,rom,"-tDSBLUE","-c0000","-m00")
     boot_obj, boot_rom = output/"blue-entry.o", output/"blue-entry.raw"
     run(executable(arm,"arm-none-eabi-as"),"-mcpu=arm7tdmi",ROOT/"tools/slot_boot_entry.s","-o",boot_obj)
     run(objcopy,"-O","binary","-j",".text",boot_obj,boot_rom)
-    symbols = subprocess.check_output([str(nm),"-n",str(boot_obj)],text=True)
-    wrapper = int(next(line.split()[0] for line in symbols.splitlines()
-                       if line.endswith(" Slot_ClearWorkRam")),16)
+    wrapper = symbols(nm, boot_obj)["Slot_ClearWorkRam"]
     payload = patch_entry(rom.read_bytes(),boot_rom.read_bytes(),wrapper)
     image = pack(payload,(ROOT/"image.bin").read_bytes())
     path = output/("ezbluekernel.bin" if flashable else "blue-upgrade-layout.test")
+    build_text_viewer(run, gcc, objcopy, gbafix, arch, gba, output)
     path.write_bytes(image)
     print(f"{path}: {len(image)} bytes, SHA-256 {sha(image)}")
 

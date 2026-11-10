@@ -1721,7 +1721,8 @@ u32 Copy_file(const char* src, const char* dst)
 			}
 			if (res == FR_OK)
 				res = f_sync(&dst_file);
-			f_close(&dst_file);
+			if(f_close(&dst_file) != FR_OK && res == FR_OK)
+				res = FR_DISK_ERR;
 
 			if ((res == FR_OK) && (total_read == filesize) && (total_written == filesize))
 			{
@@ -1784,13 +1785,16 @@ static u32 Launcher_GetVirtualFileInfo(const TCHAR *path, const TCHAR *name, u32
 	return !gamecode || !is_gba || ((res == FR_OK) && (read_count == 4));
 }
 
+extern u32 Blue_CRC32Update(u32 crc, const u8 *buf, u32 size);
+#include "blue_style.h"
+
 u32 Stage_kernel_update(const TCHAR *src_name)
 {
     TCHAR src_path[MAX_path_len + 200];
-    const TCHAR *tmp_path = "/ezkernelnew.tmp";
+    const TCHAR *tmp_path = "/ezbluekernel.tmp";
     const TCHAR *dst_path = "/ezbluekernel.bin";
-    u32 src_size = 0;
-    u32 tmp_size = 0;
+    const TCHAR *backup_path = "/ezbluekernel.bak";
+    FRESULT dst_state;
 
     memset(src_path, 0, sizeof(src_path));
 
@@ -1801,33 +1805,27 @@ u32 Stage_kernel_update(const TCHAR *src_name)
     else
         snprintf(src_path, sizeof(src_path), "%s/%s", currentpath, src_name);
 
-    if (!Get_file_size_path(src_path, &src_size))
-        return 0;
-
-    f_unlink(tmp_path);
-
-    if (!Copy_file(src_path, tmp_path))
+    UIAudio_StopForSharedBufferUse();
+    if(!Blue_ValidateStyle(src_path)) return 0;
+    dst_state = f_stat(dst_path, NULL);
+    if(dst_state != FR_OK && dst_state != FR_NO_FILE) return 0;
+    if(!Copy_file(src_path, tmp_path) || !Blue_ValidateStyle(tmp_path))
     {
         f_unlink(tmp_path);
         return 0;
     }
-
-    if (!Get_file_size_path(tmp_path, &tmp_size))
+    if(dst_state == FR_OK)
     {
-        f_unlink(tmp_path);
-        return 0;
+        FRESULT res = f_unlink(backup_path);
+        if((res != FR_OK && res != FR_NO_FILE) || f_rename(dst_path, backup_path) != FR_OK)
+        {
+            f_unlink(tmp_path);
+            return 0;
+        }
     }
-
-    if (src_size != tmp_size)
+    if(f_rename(tmp_path, dst_path) != FR_OK)
     {
-        f_unlink(tmp_path);
-        return 0;
-    }
-
-    f_unlink(dst_path);
-
-    if (f_rename(tmp_path, dst_path) != FR_OK)
-    {
+        if(dst_state == FR_OK) f_rename(backup_path, dst_path);
         f_unlink(tmp_path);
         return 0;
     }
@@ -5519,17 +5517,14 @@ void IWRAM_CODE make_pogoshell_arguments(TCHAR *cmdname, TCHAR *filename, u32 cm
 	dmaCopy((void*)pReadCache,PSRAMBase_S98 + Address, 0x58);
 }
 
+#include "blue_plugin.h"
+
 u32 IWRAM_CODE LoadEMU2PSRAM(TCHAR *filename,u32 is_EMU)
 {
-	UINT  ret;
 	u32 filesize;
 	u32 res;
-	u32 blocknum;
-	char msg[20];
-	
-	u32 Address;
-	vu16 page=0;
-	SetPSRampage(page);
+	if(is_EMU > 3) return Blue_LoadPlugin(filename, is_EMU);
+	SetPSRampage(0);
 	
 	u32 rom_start_address=0;
 	switch(is_EMU)
@@ -5552,6 +5547,11 @@ u32 IWRAM_CODE LoadEMU2PSRAM(TCHAR *filename,u32 is_EMU)
 	res = f_open(&gfile, filename, FA_READ);
 	if(res == FR_OK)
 	{
+		if(!f_size(&gfile) || f_size(&gfile) > 0x800000 - rom_start_address)
+		{
+			f_close(&gfile);
+			return 1;
+		}
 		filesize = f_size(&gfile);	
 		
 		if(is_EMU==3){//nes pocketnes_2013_07_01
@@ -5569,33 +5569,8 @@ u32 IWRAM_CODE LoadEMU2PSRAM(TCHAR *filename,u32 is_EMU)
 			//use rtc, have been modify			
 		}
 
-			
-		Clear(60,160-15,120,15,gl_color_cheat_black,1);	
-		DrawHZText12(gl_writing,0,78,160-15,gl_color_text,1);	
-
-		f_lseek(&gfile, 0x0000);
-		for(blocknum=0x0000;blocknum<filesize;blocknum+=0x20000)
-		{		
-			sprintf(msg,"%luMb",(blocknum)/0x20000);
-			Clear(78+54,160-15,110,15,gl_color_cheat_black,1);
-			DrawHZText12(msg,0,78+54,160-15,gl_color_text,1);
-			//f_lseek(&gfile, blocknum);
-			f_read(&gfile, pReadCache, 0x20000, &ret);//pReadCache max 0x20000 Byte
-						
-			Address=blocknum;
-			while(Address>=0x800000)
-			{
-				Address-=0x800000;
-				page+=0x1000;
-			}
-			SetPSRampage(page);
-			dmaCopy((void*)pReadCache,PSRAMBase_S98 + rom_start_address + Address, 0x20000);
-			
-			page = 0;
-		}
-		f_close(&gfile);
-		SetPSRampage(0);
-		return 0;
+		int ok = Blue_CopyPluginFile(&gfile, rom_start_address, filesize);
+		return f_close(&gfile) != FR_OK || !ok;
 	}
 	else
 	{
@@ -8865,19 +8840,19 @@ u32 Check_file_type(TCHAR *pfilename)
 
 	ext++;
 
-	snprintf(plugin, sizeof(plugin), "/SYSTEM/PLUG/%s.bin", ext);
+	snprintf(plugin, sizeof(plugin), "/SYSTEM/PLUG/BLUE/%s.bin", ext);
 	res = f_stat(plugin, NULL);
 	if(res == FR_OK)
 		return 4;
-	snprintf(plugin, sizeof(plugin), "/SYSTEM/PLUG/%s.gba", ext);
+	snprintf(plugin, sizeof(plugin), "/SYSTEM/PLUG/BLUE/%s.gba", ext);
 	res = f_stat(plugin, NULL);
 	if(res == FR_OK)
 		return 5;
-	snprintf(plugin, sizeof(plugin), "/SYSTEM/PLUG/%s.mb", ext);
+	snprintf(plugin, sizeof(plugin), "/SYSTEM/PLUG/BLUE/%s.mb", ext);
 	res = f_stat(plugin, NULL);
 	if(res == FR_OK)
 		return 6;
-	snprintf(plugin, sizeof(plugin), "/SYSTEM/PLUG/%s.mbz", ext);
+	snprintf(plugin, sizeof(plugin), "/SYSTEM/PLUG/BLUE/%s.mbz", ext);
 	res = f_stat(plugin, NULL);
 	if(res == FR_OK)
 		return 7;
@@ -8894,6 +8869,10 @@ u32 Check_file_type(TCHAR *pfilename)
 	else if(!strcasecmp(ext, "gb"))
 	{
 		return 2;
+	}
+	else if(!strcasecmp(ext, "nes"))
+	{
+		return 3;
 	}
 
 	return 0xff;
@@ -9807,6 +9786,7 @@ static u32 Launcher_ShouldHideSystemEntry(const TCHAR *path, const TCHAR *name, 
     {
         if(!strcasecmp(name, "ezkernel.bin") || !strcasecmp(name, "ezbluekernel.bin") ||
            !strcasecmp(name, "ezkernel.tmp") || !strcasecmp(name, "ezkernelnew.tmp") ||
+           !strcasecmp(name, "ezbluekernel.tmp") || !strcasecmp(name, "ezbluekernel.bak") ||
            !strcasecmp(name, ".DS_Store") || !strcasecmp(name, "desktop.ini") ||
            !strcasecmp(name, "Thumbs.db") || !strcasecmp(name, "IndexerVolumeGuid") ||
            !strcasecmp(name, "WPSettings.dat") || !strncasecmp(name, "._", 2))
@@ -13593,7 +13573,7 @@ typedef enum
 
 static const u32 launcher_settings_interface_items[] = {
     SETTINGS_TIME_SETTINGS, SETTINGS_CLOCK_FORMAT, SETTINGS_LANGUAGE, SETTINGS_SOUNDS,
-    SETTINGS_THEME_MODE, SETTINGS_THEME, SETTINGS_VIEW_MODE,
+    SETTINGS_THEME_MODE, SETTINGS_THEME, SETTINGS_LOAD_STYLE, SETTINGS_VIEW_MODE,
     SETTINGS_VIEW_OPTIONS, SETTINGS_WRAP_AROUND, SETTINGS_BOOT_TO, SETTINGS_START_SOURCE };
 static const u32 launcher_settings_view_items[] = {
     SETTINGS_LIST_FOLDERS, SETTINGS_THUMBNAILS, SETTINGS_ART_POSITION, SETTINGS_ART_BORDER,
@@ -14061,6 +14041,7 @@ static u32 Get_path_depth(const TCHAR *path)
 #include "system_browser.h"
 
 #include "blue_nor.h"
+#include "blue_nor_state.h"
 #include "game_return.h"
 
 int main(void) {
@@ -14165,6 +14146,14 @@ int main(void) {
 	startup_quicklaunch_pending = !ds_return_pending && (startup_keys_held & Launcher_AutoStartKeyMask());
 
 	Check_save_flag();
+	if(ds_return_pending && ds_return.page == NOR_list && ds_return.nor_state_key &&
+	   !Blue_FlushNORState(ds_return.nor_state_key))
+	{
+		Launcher_DrawThemeBGFull(Launcher_GetBGImage());
+		Launcher_ShowLaunchError(gl_error_6);
+		Launcher_RevealReturn();
+		wait_btn();
+	}
 
 	f_chdir("/");
 	//TCHAR currentpath[MAX_path_len];
@@ -15900,7 +15889,10 @@ static void Launcher_ConfirmLaunch(u32 pulse)
 //---------------------------------------------------------------
 void Boot_NOR_game(u32 show_offset,	u32 file_select,u32 key_L)
 {
-    if(pNorFS[show_offset+file_select].have_patch && pNorFS[show_offset+file_select].have_RTS)
+    if(show_offset >= game_total_NOR || file_select >= game_total_NOR - show_offset) return;
+    const FM_NOR_FS *entry = &pNorFS[show_offset+file_select];
+    if(entry->have_patch && entry->have_RTS &&
+       (entry->have_patch != 2 || entry->have_RTS != 2 || entry->reserved2 != 0x4252))
     {
         Launcher_ShowLaunchError("NOR entry contains an embedded RTS map.");
         wait_btn();
@@ -15945,13 +15937,14 @@ void Boot_NOR_game(u32 show_offset,	u32 file_select,u32 key_L)
 	if(pNorFS[show_offset+file_select].have_patch && pNorFS[show_offset+file_select].have_RTS)
 	{
 		ShowbootProgress(gl_check_RTS);
-		u32 size = Check_RTS(pfilename);
-		if(size ==0)
+		u32 key = Blue_NORStateKey(entry);
+		if(!Blue_PrepareNORState(key))
 		{
 			error_num = 6;
 			Show_error_num(error_num);
 			return;
 		}
+		ds_return.nor_state_key = key;
 	}
 
 	FAT_table_buffer[0x1F4/4] = SET_PARAMETER_MODE;
@@ -16521,12 +16514,6 @@ load_file:
 
 	init_FAT_table();
 
-    if(is_EMU > 3)
-    {
-        Launcher_ShowLaunchError("Unsupported on this Blue build.");
-        wait_btn();
-        return 0;
-    }
 	//Load to PSRAM or NOR
 
 	f_chdir(currentpath);//return to game folder
@@ -16574,7 +16561,7 @@ load_file:
 			return 0;
 		}
 
-		error_num = Process_savefile(is_EMU,pfilename,gamefilesize,SAVEMODE);
+		error_num = Blue_IsDocument(pfilename) ? 0 : Process_savefile(is_EMU,pfilename,gamefilesize,SAVEMODE);
 		if(error_num != 0){
 			Show_error_num(error_num);
 			return 0;
@@ -16596,7 +16583,7 @@ load_file:
         if(res != 0) { Show_error_num(1); return 0; }
         if(is_EMU == 1 || is_EMU == 2) DSStyle_ArmReturn(is_EMU == 1 ? 2 : 1, pfilename);
         else Slot_ArmReturn("", 3, 0);
-			int bootmode = ((is_EMU > 3) && (is_EMU < 9)) ?
+			int bootmode = (is_EMU > 3) ?
 				((is_EMU == 6) ? 2
 					: (is_EMU == 7) ? 4
 					: ((is_EMU == 8) ? 5 : 3)) : gl_toggle_reset;
@@ -16760,12 +16747,6 @@ load_file:
 					}
 					needpatch = 1;
 				}
-				if(gl_rts_on)
-                {
-                    Launcher_ShowLaunchError("Turn off RTS before writing to NOR.");
-                    wait_btn();
-                    return 0;
-                }
                 res = Loadfile2NOR(pfilename,0,needpatch,SAVEMODE,flag_64MBrom);
 				//wait_btn();
 				if(res==0)

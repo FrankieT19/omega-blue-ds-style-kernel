@@ -18,6 +18,9 @@ typedef struct FM_NOR_FILE_SECT{////save to nor
 	char gamename[0x10];
 } FM_NOR_FS;
 
+u32 Blue_NORStateKey(const FM_NOR_FS *entry);
+extern u32 blue_nor_write_state_key;
+
 typedef struct FM_Folder_SECT{
 	char filename[100];
 } FM_Folder_FS;

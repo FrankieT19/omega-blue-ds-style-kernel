@@ -1,5 +1,14 @@
 # Changelog
 
+## v8.1 Blue Test 2
+
+- Added PogoShell loading and bundled the Blue text and Markdown viewer.
+- Enabled Load style for DS Style images built for the Blue layout.
+- Added experimental NOR save states for newly written add-on entries.
+  Save states are written to the card on return to DS Style, not by writing
+  to hard-coded SD sectors from the game.
+- Enabled the built-in Blue NES emulator when no NES plugin is present.
+
 ## v8.1 Blue Test 1
 
 - Initial hardware-test port for the EZ-FLASH Omega Definitive Edition B.

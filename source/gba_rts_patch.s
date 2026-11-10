@@ -14,6 +14,7 @@
 	.global  no_CHEAT_end
 	.global  RTS_file_FAT
 	.global  SecortPcluster
+    .global  Blue_NOR_RTS_Key
 	.global	Rompage_ingame
 	@;.global  ASCII
 	
@@ -394,7 +395,7 @@ wSram_loop:
 .align
 DDR_OP_code:
 	stmfd	sp!,{r0-r7,lr}
-	mov 	r0,#0x1  @; ¥Úø™DDR GAME MODE–¥ ≤¢«–ªªµΩ ∫Û32MBµƒø’º‰
+	mov 	r0,#0x1  @; ÊâìÂºÄDDR GAME MODEÂÜô Âπ∂ÂàáÊç¢Âà∞ Âêé32MBÁöÑÁ©∫Èó¥
 	ldr   r1,=ADDR_DDR_flag
 	bl		Set_ADDR_val
 
@@ -424,6 +425,14 @@ is_restore_LCD:	@; R1=1
 	b			DDR_OP_code_exit	
 @;##########################################	
 is_saveRTS:  @; R2=2
+    adrl r0,Blue_NOR_RTS_Key
+    ldr r0,[r0]
+    cmp r0,#0
+    beq blue_save_payload
+    bl Blue_NOR_StateReady
+    cmp r0,#0
+    beq DDR_OP_code_exit
+blue_save_payload:
 
 	@;02000000-0203FFFF   WRAM - On-board Work RAM  (256 KBytes)
 	ldr 	r0,=0x09020000  @;
@@ -505,6 +514,22 @@ is_saveRTS:  @; R2=2
 	adrl r1,S_RTS_FLAG
 	mov r2,#0x10
 	bl 	WriteSDDR_ingame		
+
+    adrl r0,Blue_NOR_RTS_Key
+    ldr r3,[r0]
+    cmp r3,#0
+    beq blue_sd_save
+    ldr r5,=0x4e525444
+    mvn r4,r3
+    mvn r6,r5
+    stmfd sp!,{r3-r6}
+    ldr r0,=0x09083000
+    mov r1,sp
+    mov r2,#16
+    bl WriteSDDR_ingame
+    add sp,sp,#16
+    b DDR_OP_code_exit
+blue_sd_save:
 	
 	
 	@;ldmfd	sp!,{r6}
@@ -576,6 +601,33 @@ END_W_TF:
 	.ltorg
 @;##########################################	
 is_loadRTS:	
+    adrl r0,Blue_NOR_RTS_Key
+    ldr r0,[r0]
+    cmp r0,#0
+    beq blue_load_payload
+    bl Blue_NOR_StateReady
+    cmp r0,#0
+    beq DDR_OP_code_exit
+    sub sp,sp,#16
+    ldr r0,=0x09082ff0
+    mov r1,sp
+    mov r2,#16
+    bl ReadDDR_ingame
+    adrl r1,S_RTS_FLAG
+    mov r2,#0
+blue_signature_loop:
+    ldr r3,[sp,r2]
+    ldr r4,[r1,r2]
+    cmp r3,r4
+    bne blue_signature_done
+    add r2,r2,#4
+    cmp r2,#16
+    blo blue_signature_loop
+blue_signature_done:
+    add sp,sp,#16
+    cmp r2,#16
+    bne DDR_OP_code_exit
+blue_load_payload:
 	
 	@;02000000-0203FFFF   WRAM - On-board Work RAM  (256 KBytes)
 	ldr 	r0,=0x09020000  @;
@@ -654,7 +706,7 @@ register_list_end:
 	msr 	cpsr_cf,r0	  @;restore IRQ	
 	NOP
 
-	mov 	r0,#0x0  @; πÿ±’DDR GAME MODE–¥
+	mov 	r0,#0x0  @; ÂÖ≥Èó≠DDR GAME MODEÂÜô
 	ldr   r1,=ADDR_DDR_flag
 	bl		Set_ADDR_val
 	
@@ -687,12 +739,39 @@ DDR_OP_code_exit:
 	ldr   r1,=ADDR_SetRompage
 	bl		Set_ADDR_val	
 
-	mov 	r0,#0x0  @; πÿ±’DDR GAME MODE–¥
+	mov 	r0,#0x0  @; ÂÖ≥Èó≠DDR GAME MODEÂÜô
 	ldr   r1,=ADDR_DDR_flag
 	bl		Set_ADDR_val
 	
 	ldmfd	sp!,{r0-r7,PC}
 	.ltorg
+
+Blue_NOR_StateReady:
+    stmfd sp!,{r4-r7,lr}
+    mov r7,r0
+    sub sp,sp,#16
+    ldr r0,=0x09083000
+    mov r1,sp
+    mov r2,#16
+    bl ReadDDR_ingame
+    ldmfd sp!,{r3-r6}
+    mov r0,#0
+    cmp r3,r7
+    bne blue_state_checked
+    mvn r4,r4
+    cmp r3,r4
+    bne blue_state_checked
+    mvn r6,r6
+    cmp r5,r6
+    bne blue_state_checked
+    ldr r1,=0x4e525453
+    cmp r5,r1
+    ldrne r1,=0x4e525444
+    cmpne r5,r1
+    moveq r0,#1
+blue_state_checked:
+    ldmfd sp!,{r4-r7,pc}
+    .ltorg
 @;------------------------------------------------------
 @;------------------------------------------------------
 Set_ADDR_val:
@@ -849,6 +928,8 @@ register_list:
 	.hword 0x0120,0x0122,0x0124,0x0126,0x0128,0x012A,0x012C,0x0132,0x0134
 	.hword 0x0140,0x0150,0x0154,0x0200,0x0204,0x0208,0xFF00
 	.align	
+.align 2
+Blue_NOR_RTS_Key: .word 0
 S_RTS_FLAG:
  	.byte  'E','Z','-','O','m','e','g','a','R','T','C','F','I','L','E','.'
 DDR_OP_code_end:
@@ -885,7 +966,7 @@ copyddr_loop:
 	bx r0
 	
 
-	@;mov 	r0,#0x1  @; 1¥Úø™À¢–¬
+	@;mov 	r0,#0x1  @; 1ÊâìÂºÄÂà∑Êñ∞
 	@;bl Set_DDR_flag
 	@;mov 	r0,#0x30
 	@;bl 		SetRampage	
@@ -1141,14 +1222,14 @@ A_pressed:
 menu_save:
     adrl r7,RTS_switch
     ldr r7,[r7]
-    cmp r7,#1
-    beq call_Save
+    cmp r7,#0
+    bne call_Save
     b begin_show
 menu_load:
     adrl r7,RTS_switch
     ldr r7,[r7]
-    cmp r7,#1
-    beq call_Load
+    cmp r7,#0
+    bne call_Load
     b begin_show
     .ltorg
 b_pressed_quit:	
@@ -1215,10 +1296,10 @@ save_exit:
 	.ltorg		
 	@;===================================================	
 check_flag:
-	adrl	r7,RTS_switch  @;“™œ»º”‘ÿRTSŒƒº˛µΩƒ⁄¥Ê¿Ô√Ê
+	adrl	r7,RTS_switch  @;Ë¶ÅÂÖàÂä†ËΩΩRTSÊñá‰ª∂Âà∞ÂÜÖÂ≠òÈáåÈù¢
 	ldr		r7,[r7]
-	cmp 	r7,#1
-	bne 	errorRTS		
+	cmp 	r7,#0
+	beq errorRTS
 	bx 		lr
 	
 call_Save:	
@@ -1257,7 +1338,7 @@ showerror:
 	mov		r1,r10
 	add		r2,r9,#0
 	mov	  r3,#0x1F  @;red
-	bl		printchar    @; r0 char£¨ r1, X  £¨ r2, Y , r3 color
+	bl		printchar    @; r0 charÔºå r1, X  Ôºå r2, Y , r3 color
 	add		r10,#8
 	b			showerror
 enderror:	
@@ -1392,7 +1473,7 @@ Slot_MenuTextEnd:
     ldmfd sp!,{r8-r11,pc}
     .ltorg
 
-printchar:	@; r0 ¥Ú”°µƒ◊÷∑˚£¨ r1, X  £¨ r2, Y , r3 —’…´
+printchar:	@; r0 ÊâìÂç∞ÁöÑÂ≠óÁ¨¶Ôºå r1, X  Ôºå r2, Y , r3 È¢úËâ≤
 	STMFD   SP!, {R8-R11,LR}
 	MOV     R8, R1
 	MOV     R6, R2
