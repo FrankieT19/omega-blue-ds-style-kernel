@@ -3,7 +3,8 @@
 @;--------------------------------------------------------------------
 @;-                      Reset                                    -
 @;--------------------------------------------------------------------
-	.section   	.iwram,"ax",%progbits
+
+    .section .text.blue_game_patch,"ax",%progbits
 		
 	.global  Sleep_ReplaceIRQ_start
 	.global  Sleep_ReplaceIRQ_end

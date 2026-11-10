@@ -1,0 +1,10 @@
+build/
+__pycache__/
+*.elf
+*.gba
+*.map
+*.o
+*.raw
+*.test
+Thumbs.db
+desktop.ini

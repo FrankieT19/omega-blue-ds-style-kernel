@@ -395,7 +395,7 @@ u8 IWRAM_CODE Get_NOR_FAT_info(u32 offset)
 // --------------------------------------------------------------------
 void IWRAM_CODE Save_NOR_FAT_info(void)
 {
-	Save_info_2_NOR(NOR_FAT_offset, NOR_FAT_buffer,NOR_FAT_SIZE);
+	Save_info_2_NOR(NOR_FAT_offset, (u16*)NOR_FAT_buffer,NOR_FAT_SIZE);
 }
 
 // --------------------------------------------------------------------
@@ -591,7 +591,9 @@ void IWRAM_CODE Check_FW_update(/*u16 Current_FW_ver,u16 Built_in_ver*/)
 	u16 DEcard_FW_ver = DEcard_FW_readver & 0x00FF;
 
 	if(DEcard_FW_ver < LX16_FW_built_in_ver){
-		FW_update(DEcard_FW_readver,LX16_FW_built_in_ver,LX16_newomega_top_bin_address,LX16_newomega_top_bin_size,LX16_FW_crc32,LX16_wirte_address);
+		/* Test kernels must not write FPGA firmware. */
+        DrawHZText12("Install official Blue firmware first.",0,3,38,0x7fff,1);
+        while(1) VBlankIntrWait();
 	}
 		
 }

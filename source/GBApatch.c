@@ -275,9 +275,9 @@ void SetTrimSize(u8* buffer,u32 romsize,u32 iSize,u32 mode,BYTE saveMODE)
 
 	u32  PATCH_LENGTH;
 
-	if((gl_rts_on==1)/* || (gl_cheat_on==1)*/ )		
+	if(gl_rts_on || gl_reset_on)
 	{
-		PATCH_LENGTH = 0x1000;
+		PATCH_LENGTH = 0x2000;
 	}
 	else 
 	{
@@ -470,7 +470,7 @@ void Patch_RTS_Cheat(u32 *Data,u32 gamerompage)
   u32 RTS_Reset_key_offset = (u8*)RTS_Reset_key - p_patch_start;
  	u32 RTS_Sleep_key_offset = (u8*)RTS_Sleep_key - p_patch_start;
   
-  *(vu32*)(patchbuffer+RTS_Reset_key_offset) = RTS_reset_key_val&0x3FF;
+  *(vu32*)(patchbuffer+RTS_Reset_key_offset) = 0x3F3;
   if(gl_sleep_on !=1){  
     *(vu32*)(patchbuffer+RTS_Sleep_key_offset) = 0;
   }
@@ -651,6 +651,8 @@ u32 Get_spend_address(u32* Data)
   	return 0;	
 }
 //------------------------------------------------------------------
+void Patch_somegame(u32 *Data);
+
 void GBApatch_DDR(u32* address,int filesize,u32 gamerompage)//Only once
 {
 	windows_offset = 0;
@@ -664,12 +666,7 @@ void GBApatch_DDR(u32* address,int filesize,u32 gamerompage)//Only once
 	PatchDragonBallZ(address);
 	Patch_somegame(address);
 	
-	if( (gl_rts_on==1) && (gl_cheat_on == 0)  && (gl_reset_on == 0)  && (gl_sleep_on == 0)  ) {
-		spend_address = Get_spend_address(address);
-
-		Patch_RTS_only(address,gamerompage);		
-	}
-	else if((gl_rts_on==1) ||  ((gl_cheat_on==1)&& (gl_cheat_count>0) ) )		
+	if((gl_reset_on==1) || (gl_rts_on==1) ||  ((gl_cheat_on==1)&& (gl_cheat_count>0) ) )		
 	{
 		spend_address = Get_spend_address(address);
 
@@ -716,10 +713,7 @@ void GBApatch_NOR(u32* address,int filesize,u32 offset,u32 gamerompage)
 	PatchDragonBallZ(address);
 	//Check_Fire_Emblem();
 
-	if( (gl_rts_on==1) && (gl_cheat_on == 0)  && (gl_reset_on == 0)  && (gl_sleep_on == 0)  ) {
-		Patch_RTS_only(address,gamerompage);		
-	}
-	else if((gl_rts_on==1) ||  ((gl_cheat_on==1)&& (gl_cheat_count>0) ) )		
+	if((gl_reset_on==1) || (gl_rts_on==1) ||  ((gl_cheat_on==1)&& (gl_cheat_count>0) ) )		
 	{
 		Patch_RTS_Cheat(address,gamerompage);
 	} 
@@ -789,7 +783,7 @@ u32 Check_pat(TCHAR* gamefilename)
 	
 	TCHAR patnamebuf[100];	
 	make_pat_name(patnamebuf,gamefilename);
-	res=f_chdir("/PATCH");
+	res=f_chdir("/SYSTEM/PATCH/BLUE");
 	if(res == FR_OK)
 	{
 		res = f_open(&gfile,patnamebuf, FA_READ);
@@ -846,8 +840,9 @@ void Make_pat_file(TCHAR* gamefilename)
 	u32 written;
 	u32 w_buffer[16];
 	
-	res = f_mkdir("/PATCH");
-	res=f_chdir("/PATCH");
+	res = f_mkdir("/SYSTEM/PATCH");
+    f_mkdir("/SYSTEM/PATCH/BLUE");
+	res=f_chdir("/SYSTEM/PATCH/BLUE");
 	
 	memset(w_buffer, 0x00, sizeof(w_buffer));
 
@@ -984,27 +979,33 @@ u32 Check_RTS(TCHAR* gamefilename)
 	//u32 find_the_patfile;
 	u32 rtsfilesize;
 	u32 res;
-	
+
 	TCHAR rtsnamebuf[100];
-	memcpy(rtsnamebuf,gamefilename,100);
-	u32 len=strlen(rtsnamebuf);
+	u32 len = 0;
+	while(len < sizeof(rtsnamebuf) && gamefilename[len])
+		len++;
+	if(len >= sizeof(rtsnamebuf) || len < 3)
+		return 0;
+	memcpy(rtsnamebuf,gamefilename,len);
+	rtsnamebuf[len] = '\0';
 	rtsnamebuf[len-3] = 'r';
 	rtsnamebuf[len-2] = 't';
-	rtsnamebuf[len-1] = 's';	
-	
-	res = f_mkdir("/RTS");
-	res=f_chdir("/RTS");
+	rtsnamebuf[len-1] = 's';
+
+	res = f_mkdir("/SYSTEM/RTS");
+	f_mkdir("/SYSTEM/RTS/BLUE");
+	res=f_chdir("/SYSTEM/RTS/BLUE");
 	if(res != FR_OK){
 		return 0;
 	}
-	
+
 	res = f_open(&gfile,rtsnamebuf, FA_OPEN_EXISTING);
-	
+
 	if(res == FR_OK)//have a old rts file
 	{
 		rtsfilesize = f_size(&gfile);
 		f_close(&gfile);
-	}					
+	}
 	else //make a new one
 	{
 		ShowbootProgress(gl_make_RTS);
@@ -1012,29 +1013,31 @@ u32 Check_RTS(TCHAR* gamefilename)
 		if(res==FR_OK)
 		{
 			int i;
-			unsigned int written;
+			UINT written;
+			FRESULT write_result = FR_OK;
+			FRESULT close_result;
 			memset(pReadCache,0xFF,0x200*4);
 			for(i=0;i<(0x70000)/0x800 ;i++)
 			{
-	      f_write(&gfile, pReadCache, 0x200*4, (UINT*)&written);
-	      if(written != 0x200*4) break;
-	    }
-	    f_close(&gfile);
-
-	    rtsfilesize = 0x70000;
+				write_result = f_write(&gfile, pReadCache, 0x200*4, &written);
+				if(write_result != FR_OK || written != 0x200*4) break;
+			}
+			close_result = f_close(&gfile);
+			rtsfilesize = (i == (0x70000)/0x800 && close_result == FR_OK) ? 0x70000 : 0;
 		}
-		else 
+		else
 			rtsfilesize = 0;
 	}
-	LoadRTSfile(rtsnamebuf);
+	if(rtsfilesize != 0x70000 || LoadRTSfile(rtsnamebuf))
+		rtsfilesize = 0;
 	if(rtsfilesize)
 	{
 		res = Check_game_RTS_FAT(rtsnamebuf,3);//rts FAT
 		if(res == 0xffffffff){
 			rtsfilesize = 0;
-		}														
+		}
 	}
-	
+
 	return rtsfilesize;
 }
 //------------------------------------------------------------------

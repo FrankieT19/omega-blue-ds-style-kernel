@@ -1,5 +1,6 @@
 @;--------------------------------------------------------------------
-	.section   	.iwram,"ax",%progbits
+
+    .section .text.blue_game_patch,"ax",%progbits
 		
 	.global  RTS_only_ReplaceIRQ_start
 	.global  RTS_only_ReplaceIRQ_end
