@@ -4,11 +4,11 @@ DS Style is a Nintendo DS-inspired kernel for the EZ-FLASH Omega family.
 This repository is for the **blue PCB marked EZODE-B** only. It is not for
 the earlier Omega Definitive Edition Rev A or Rev B, or the original Omega.
 
-**v8.1 Blue Test 4 is experimental and has not yet been verified on a
+**v8.1 Blue Test 5 is experimental and has not yet been verified on a
 physical EZODE-B.** Use a spare SD card, back up your saves and NOR data, and
 keep the official Blue kernel on a separate card before installing.
 
-- [Download Blue Test 4](https://github.com/FrankieT19/omega-blue-ds-style-kernel/releases/tag/v8.1-blue-test.4)
+- [Download Blue Test 5](https://github.com/FrankieT19/omega-blue-ds-style-kernel/releases/tag/v8.1-blue-test.5)
 - [Installation, testing and uninstallation](INSTALL.md)
 - [DS Style project page](https://frankiet19.github.io/omega-de-ds-style-kernel/project/)
 - [Original Omega Definitive Edition](https://github.com/FrankieT19/omega-de-ds-style-kernel)
@@ -24,16 +24,16 @@ build's scope and limitations.
 Install devkitPro with devkitARM, libgba and gbafix, and Python 3. On
 Windows the build defaults to `C:/devkitPro`; elsewhere set `DEVKITPRO`
 or pass `--devkitpro`. The build checks the devkitARM CRT before installing
-the warm-return trampoline and rejects any image that would overlap the
-vendor firmware. The default output is named `blue-upgrade-layout.test`.
+the warm-return trampoline and enforces the Blue upgrade image size.
+The default output is named `blue-upgrade-layout.test`.
 
 ```sh
 python tools/build.py
 ```
 
 Use `--flashable` to name the checked output `build/ezbluekernel.bin` for a
-physical Blue hardware test. Do not run the original stock link step on
-this payload: it would overwrite the part of the port above 1 MiB.
+physical Blue hardware test. Do not run the stock link step on this payload.
+Firmware updates are handled separately by the official Blue kernel.
 The same command builds `build/txt.bin`, the Blue text viewer. Install
 copies under `SYSTEM/PLUG/BLUE` as `txt.bin`, `md.bin` and `markdown.bin`.
 

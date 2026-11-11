@@ -199,7 +199,7 @@ static void Launcher_MotionPrepareBackground(LauncherMotionRect r)
             dst = (u16*)((u8*)&launcher_thumbnail_workspace + middle_start) + (row - low_rows) * r.w;
         else dst = (u16*)(pReadCache + 0x1E400) + (row - low_rows - middle_rows) * r.w;
         LAUNCHER_MOTION_WORK->background_rows[row] = dst;
-        BlueArtwork_Restore(bg, 240, dst, r.x, r.y + row, stride / 2);
+        dmaCopy((void*)(bg + (r.y + row) * 240 + r.x), dst, stride);
     }
 }
 

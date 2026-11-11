@@ -8,12 +8,8 @@ import subprocess
 import zlib
 
 ROOT = Path(__file__).resolve().parents[1]
-TAIL = 0x100000
-FW = 0x195000
-STYLE_SEAL = FW - 16
-FW_SIZE = 0x716A0
-FW_CRC = 0x22DD74FA
-VENDOR_SHA256 = "be609b61939eaa19b97b81345f8e44e7c97b819fb76d230553d40f2d28688644"
+IMAGE_SIZE = 0x2069DC
+STYLE_SEAL = IMAGE_SIZE - 16
 
 
 def sha(data):
@@ -44,18 +40,13 @@ def patch_entry(payload, boot, wrapper):
     return data
 
 
-def pack(payload, vendor):
+def pack(payload):
     if len(payload) > STYLE_SEAL:
-        raise RuntimeError("Kernel overlaps the Blue style seal or firmware payload")
-    if sha(vendor) != VENDOR_SHA256:
-        raise RuntimeError("Wrong vendor image. Use image.bin from the pinned Blue source.")
-    image = bytearray(TAIL + len(vendor))
-    image[TAIL:] = vendor
+        raise RuntimeError("Kernel exceeds the Blue upgrade image size")
+    image = bytearray(IMAGE_SIZE)
     image[:len(payload)] = payload
     crc = zlib.crc32(memoryview(image)[:STYLE_SEAL])
-    struct.pack_into("<8sII", image, STYLE_SEAL, b"DSBLUE3\0", crc, crc ^ 0xffffffff)
-    if zlib.crc32(image[FW:FW + FW_SIZE]) != FW_CRC or image[FW:] != vendor[FW - TAIL:]:
-        raise RuntimeError("The vendor firmware region changed")
+    struct.pack_into("<8sII", image, STYLE_SEAL, b"DSBLUE5\0", crc, crc ^ 0xffffffff)
     return image
 
 
@@ -113,11 +104,11 @@ def build(sdk, flashable):
         obj = output/(item.stem+".o")
         opts = ["-Wa,-I"+str(source)] if item.suffix == ".s" else [
             "-Wall","-Os" if item.name == "ezbluekernel.c" else "-O",
-            "-mtune=arm7tdmi","-fomit-frame-pointer","-ffast-math"]
+            "-mtune=arm7tdmi","-fomit-frame-pointer","-ffast-math","-ffunction-sections","-fdata-sections"]
         run(gcc,*arch,*includes,*opts,"-c",item,"-o",obj)
         objects.append(obj)
     elf, rom = output/"ezbluekernel.elf", output/"ezbluekernel.gba"
-    run(gcc,*arch,"-specs=gba.specs","-Wl,-Map,"+str(output/"ezbluekernel.map"),
+    run(gcc,*arch,"-specs=gba.specs","-Wl,--gc-sections,-Map,"+str(output/"ezbluekernel.map"),
         *sorted(objects),"-L",gba/"lib","-lmm","-lgba","-o",elf)
     regions = symbols(nm, elf)
     if regions["__eheap_start"] >= 0x0203f800 or regions["__iwram_overlay_end"] >= 0x03006f00:
@@ -135,7 +126,7 @@ def build(sdk, flashable):
     run(objcopy,"-O","binary","-j",".text",boot_obj,boot_rom)
     wrapper = symbols(nm, boot_obj)["Slot_ClearWorkRam"]
     payload = patch_entry(rom.read_bytes(),boot_rom.read_bytes(),wrapper)
-    image = pack(payload,(ROOT/"image.bin").read_bytes())
+    image = pack(payload)
     path = output/("ezbluekernel.bin" if flashable else "blue-upgrade-layout.test")
     build_text_viewer(run, gcc, objcopy, gbafix, arch, gba, output)
     path.write_bytes(image)

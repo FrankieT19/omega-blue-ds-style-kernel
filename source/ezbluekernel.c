@@ -1,4 +1,3 @@
-#include "blue_artwork_bridge.h"
 #include <gba_video.h>
 #include <gba_interrupt.h>
 #include <gba_systemcalls.h>
@@ -2407,7 +2406,7 @@ static void Launcher_BuildSDListRowBufferState(u16 *row_buffer, u32 show_offset,
 	char msg[20];
 
 	for(y = 0; y < 14; y++)
-		BlueArtwork_Restore(bg, 240, row_buffer + y * 240, 0, showy + y, 240);
+		Launcher_DmaCopyAligned32(bg + (showy + y) * 240, row_buffer + y * 240, 240 * 2);
 
 	if(selected)
 	{
@@ -3511,7 +3510,7 @@ static void Launcher_RestoreLegacyMenuRow(u32 y, u32 h)
 	u32 src_x = row_x - popup_x;
 	u32 src_y = y - popup_y;
 
-	BlueArtwork_DrawPopupClip((const u16*)gImage_MENU, src_x, src_y, row_x, y, row_w, h);
+	Launcher_DrawPicClipStride(((u16*)gImage_MENU) + src_y * popup_w + src_x, popup_w, row_x, y, row_w, h);
 }
 //---------------------------------------------------------------------------------
 static char *Launcher_RomMenuText(u32 line)
@@ -3568,7 +3567,8 @@ static void Launcher_RedrawRomMenuSaveTypeValue(u32 save_num)
 	const u32 src_x = value_x - popup_x;
 	const u32 src_y = value_y - popup_y;
 
-	BlueArtwork_DrawPopupClip((const u16*)gImage_MENU, src_x, src_y, value_x, value_y, value_w, value_h);
+	Launcher_DrawPicClipStride(((u16*)gImage_MENU) + src_y * popup_w + src_x,
+		popup_w, value_x, value_y, value_w, value_h);
 	Clear(value_x, value_y, value_w, value_h, gl_color_selectBG_sd, 1);
 	DrawHZText12((char*)Launcher_RomMenuSaveTypeValue(save_num), 32,
 		60+54, value_y, LAUNCHER_SELECTED_TEXT, 1);
@@ -7121,7 +7121,7 @@ static void Launcher_PrepareBGPanel(const u16 *bg, u16 *dst, int dst_w, int dst_
 		{
 			int sx = screen_x + x;
 			if((sx >= 0) && (sx < 240) && (sy >= 0) && (sy < 160))
-				BlueArtwork_Restore(bg, 240, &dst[y * dst_w + x], sx, sy, 1);
+				dst[y * dst_w + x] = bg[sy * 240 + sx];
 			else
 				dst[y * dst_w + x] = 0;
 		}
@@ -7227,7 +7227,8 @@ static void Launcher_RestoreBGClip(const u16 *bg, int x, int y, int w, int h)
 
 	for(row = y0; row < y1; row++)
 	{
-		BlueArtwork_Restore(bg, 240, dst_base + row * 240 + x0, x0, row, x1 - x0);
+		dmaCopy((void*)(bg + (row * 240) + x0),
+			(void*)(dst_base + (row * 240) + x0), (x1 - x0) * 2);
 	}
 }
 
@@ -10168,7 +10169,7 @@ static u32 Launcher_SettingsRefreshColour(const u16 *old_bg, const u16 *old_top,
     volatile u16 *screen = (volatile u16*)0x06000000;
     u32 i, count = LAUNCHER_TOP_BAR_HEIGHT * 240;
     if(old_text != gl_color_text || old_top_text != gl_color_topbar_text ||
-       old_bg != bg)
+       (old_bg != bg && memcmp(old_bg + count, bg + count, (240 * 160 - count) * 2)))
         return 1;
     if(!old_top) old_top = old_bg;
     if(!top) top = bg;
@@ -10247,7 +10248,7 @@ static void Launcher_SettingsRestorePopupArea(u32 x, u32 y, u32 w, u32 h)
 
     src_x = x - popup_x;
     src_y = y - popup_y;
-    BlueArtwork_DrawPopupClip((const u16*)gImage_MENU, src_x, src_y, x, y, w, h);
+    Launcher_DrawPicClipStride(((u16*)gImage_MENU) + src_y * popup_w + src_x, popup_w, x, y, w, h);
 }
 
 static void Launcher_SettingsDrawPopupRowEx(u32 item, u32 selected, u32 top, void (*get_line)(u32,char*,u32), u32 row_y0)
@@ -14094,15 +14095,8 @@ int main(void) {
 	if(ds_return_pending) Launcher_HoldReturn();
 	else SetMode(MODE_3 | BG2_ENABLE | 0x0080);
 
-	//check FW
-    if(ds_return_pending)
-    {
-        /* Firmware was already checked on this powered session. A firmware
-           prompt must not run beneath the held return fade. */
-        extern unsigned char ASC_DATA_OLD[];
-        ASC_DATA = ASC_DATA_OLD;
-    }
-    else Check_FW_update();
+    extern unsigned char ASC_DATA_OLD[];
+    ASC_DATA = ASC_DATA_OLD;
 
 
 	UIAudio_Init();

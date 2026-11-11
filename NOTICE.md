@@ -2,7 +2,7 @@
 
 The EZ-FLASH Blue source is based on ezflash-team/blue-kernel at
 `109f1a050d9c35008379ce61ae40d05dc528c614`. Original EZ-FLASH and DS Style
-notices are retained. The vendor firmware image is unmodified.
+notices are retained. DS Style does not bundle the vendor FPGA firmware.
 
 The port incorporates DS Style by FrankieT19 and adapts return and
 emulator integration from [Slot. Advance](https://github.com/FrankieT19/slot-advance)

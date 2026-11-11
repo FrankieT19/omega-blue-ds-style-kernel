@@ -1,11 +1,10 @@
 #ifndef DS_STYLE_BLUE_STYLE_H
 #define DS_STYLE_BLUE_STYLE_H
 
-#define BLUE_STYLE_SEAL_OFFSET 0x194ff0u
-#define BLUE_STYLE_FW_OFFSET 0x195000u
 #define BLUE_STYLE_IMAGE_SIZE 0x2069dcu
+#define BLUE_STYLE_SEAL_OFFSET (BLUE_STYLE_IMAGE_SIZE - 16u)
 
-/* The builder seals everything before the vendor firmware. */
+/* The builder seals the entire firmware-free kernel image. */
 static int Blue_ValidateStyle(const TCHAR *path)
 {
     FIL file;
@@ -31,17 +30,9 @@ static int Blue_ValidateStyle(const TCHAR *path)
         left -= count;
     }
     if(f_read(&file, &seal, sizeof(seal), &got) != FR_OK || got != sizeof(seal) ||
-       memcmp(seal.tag, "DSBLUE3", sizeof(seal.tag)) ||
+       memcmp(seal.tag, "DSBLUE5", sizeof(seal.tag)) ||
        seal.crc != (crc ^ 0xffffffff) || seal.inverse != ~seal.crc) goto done;
-    crc = 0xffffffff;
-    for(u32 left = BLUE_STYLE_IMAGE_SIZE - BLUE_STYLE_FW_OFFSET; left;)
-    {
-        UINT count = left < 0x20000 ? left : 0x20000;
-        if(f_read(&file, pReadCache, count, &got) != FR_OK || got != count) goto done;
-        crc = Blue_CRC32Update(crc, pReadCache, count);
-        left -= count;
-    }
-    valid = (crc ^ 0xffffffff) == 0x06b54368;
+    valid = 1;
 done:
     return f_close(&file) == FR_OK && valid;
 }

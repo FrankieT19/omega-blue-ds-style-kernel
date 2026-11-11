@@ -1,5 +1,10 @@
 # Changelog
 
+## v8.1 Blue Test 5
+
+- Restore the original DS Style bitmap assets and DMA drawing paths.
+- Remove the FPGA firmware payload and updater from DS Style.
+
 ## v8.1 Blue Test 4
 
 - Allow large-ROM add-ons on SD and NOR when the patch and scratch space fit.

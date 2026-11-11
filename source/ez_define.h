@@ -52,11 +52,6 @@
 #define SET_info_offset 0x7C0000
 #define NOR_FAT_offset 0x7E0000
 #define  NOR_FAT_SIZE 960
-#define LX16_FW_built_in_ver 3
-#define LX16_newomega_top_bin_address (void*)0x08195000
-#define LX16_newomega_top_bin_size  0x716a0
-#define LX16_wirte_address 0x100000
-#define LX16_FW_crc32 0x22DD74FA
 
 #define SAVER_FOLDER "/SYSTEM/SAVER"
 

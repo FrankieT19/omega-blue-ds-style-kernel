@@ -452,26 +452,6 @@ u16 IWRAM_CODE Read_FPGA_ver(void)
 	return Read_SPI;
 }
 // --------------------------------------------------------------------
-void IWRAM_CODE SetSPIWrite(u16  control)
-{
-	*(u16 *)0x9fe0000 = 0xd200;
-	*(u16 *)0x8000000 = 0x1500;
-	*(u16 *)0x8020000 = 0xd200;
-	*(u16 *)0x8040000 = 0x1500;
-	*(u16 *)0x9680000 = control;
-	*(u16 *)0x9fc0000 = 0x1500;
-}
-// --------------------------------------------------------------------
-void IWRAM_CODE SPI_Write_Enable(void)
-{
-	SetSPIWrite(1);
-}
-// --------------------------------------------------------------------
-void IWRAM_CODE SPI_Write_Disable(void)
-{
-	SetSPIWrite(0);
-}
-// --------------------------------------------------------------------
 void IWRAM_CODE Set_RTC_status(u16  status)
 {
 	*(u16 *)0x9fe0000 = 0xd200;
@@ -510,116 +490,6 @@ void IWRAM_CODE Set_64MROM_flag(u16  flag)
 	*(u16 *)0x8040000 = 0x1500;
 	*(u16 *)0x9700000 = flag;
 	*(u16 *)0x9fc0000 = 0x1500;
-}
-// --------------------------------------------------------------------
-void IWRAM_CODE FW_update(u16 DEcard_FW_readver,u16 FW_built_in_ver,void* FWbinaddress,u32 FWsize,u32 build_crc32,u32 FW_wirte_address)
-{
-	vu16 busy;
-	vu32 offset;
-	u32 offset_Y = 5;
-	u32 line_x = 17;
-	char msg[100];
-	
-	Clear(0, 0, 240, 160, RGB(0,18,24), 1);
-	
-	sprintf(msg,"Rev.%s FIRMWARE UPDATE", "BLUE");
-	DrawHZText12(msg,0,57,offset_Y+0*line_x, 0x7FFF,1);	
-	
-	u32 get_crc32 = crc32( FWbinaddress, FWsize);
-	//DEBUG_printf("get_crc32 %x ",get_crc32);
-	
-	if(get_crc32 != build_crc32)
-	{
-			sprintf(msg,"check crc32 error!");		
-			DrawHZText12(msg,0,2,offset_Y+1*line_x, RGB(31,00,00),1);
-			sprintf(msg,"press [B] to return");
-			DrawHZText12(msg,0,2,offset_Y+2*line_x, 0x7FFF,1);	
-			while(1)
-			{
-				VBlankIntrWait();	
-				
-				scanKeys();
-				u16 keys = keysDown();
-						
-				if (keys & KEY_B) {
-					return;
-				}
-			}		
-	}
-
-	sprintf(msg,"Current firmware version: V%02d",DEcard_FW_readver&0xFF);
-	DrawHZText12(msg,0,2,offset_Y+1*line_x, 0x7FFF,1);	
-	
-	sprintf(msg,"Will be updated to version: V%02d",FW_built_in_ver);
-	DrawHZText12(msg,0,2,offset_Y+2*line_x, 0x7FFF,1);	
-
-	sprintf(msg,"Press [A] to update");
-	DrawHZText12(msg,0,2,offset_Y+4*line_x, 0x7FFF,1);	
-	sprintf(msg,"Press [B] to cancel");
-	DrawHZText12(msg,0,2,offset_Y+5*line_x, 0x7FFF,1);	
-	
-	while(1)
-	{
-		VBlankIntrWait();	
-		
-		scanKeys();
-		u16 keys = keysDown();
-				
-		if (keys & KEY_A) {
-			SPI_Write_Disable();
-			Clear(2, offset_Y+4*line_x,220,15,RGB(0,18,24),1);	
-			Clear(2, offset_Y+5*line_x,220,15,RGB(0,18,24),1);	
-		
-			sprintf(msg,"progress:");		
-			DrawHZText12(msg,0,2,offset_Y+6*line_x, 0x7FFF,1);
-									
-			for(offset = 0x0000;offset<FWsize;offset+=256)
-			{
-					
-				sprintf(msg," %lu%%",(offset*100/FWsize+1));
-				Clear(54, offset_Y+6*line_x,120,15,RGB(0,18,24),1);	
-				DrawHZText12(msg,0,54,offset_Y+6*line_x, 0x7FFF,1);	
-				
-				FAT_table_buffer[0] = (FW_wirte_address + offset);//omega DE 0x80000
-				
-				dmaCopy(FWbinaddress+offset,&FAT_table_buffer[1],256);  
-				Send_FATbuffer(FAT_table_buffer,2); 
-								   
-				SPI_Write_Enable();
-				while(1)
-				{
-					busy = SD_Response();
-					if(busy==0) break;
-				}
-				SPI_Write_Disable();
-				//DEBUG_printf("count %x ",count);
-				//break;								
-			}		
-			sprintf(msg,"update finished,power off manual");
-			DrawHZText12(msg,0,2,offset_Y+8*line_x, 0x7FFF,1);	
-			
-			while(1);
-			break;
-		}	
-		else if (keys & KEY_B) {
-			break;
-		}
-	}
-}
-// --------------------------------------------------------------------
-void IWRAM_CODE Check_FW_update(/*u16 Current_FW_ver,u16 Built_in_ver*/)
-{
-	extern unsigned char ASC_DATA_OLD[];
-	extern unsigned char *ASC_DATA;
-	ASC_DATA = ASC_DATA_OLD;
-	u16 DEcard_FW_readver = Read_FPGA_ver();
-	u16 DEcard_FW_ver = DEcard_FW_readver & 0x00FF;
-
-	if(DEcard_FW_ver < LX16_FW_built_in_ver){
-		FW_update(DEcard_FW_readver, LX16_FW_built_in_ver, LX16_newomega_top_bin_address,
-		          LX16_newomega_top_bin_size, LX16_FW_crc32, LX16_wirte_address);
-	}
-		
 }
 // --------------------------------------------------------------------
 static const u32 crc32tab[] = {
@@ -693,9 +563,4 @@ u32 Blue_CRC32Update(u32 crc, const u8 *buf, u32 size)
 	for (u32 i = 0; i < size; i++)
 		crc = crc32tab[(crc ^ buf[i]) & 0xff] ^ (crc >> 8);
 	return crc;
-}
-
-u32 crc32(unsigned char *buf, u32 size)
-{
-	return Blue_CRC32Update(0xffffffff, buf, size) ^ 0xffffffff;
 }

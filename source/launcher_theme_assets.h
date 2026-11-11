@@ -8,13 +8,27 @@
 #include "icon_folder.h"
 #undef gImage_icon_folder
 
-extern const unsigned char gImage_SD_LIST_BLANK[];
-extern const unsigned char gImage_SD_HORIZONTAL_BLANK[];
-extern const unsigned char gImage_SD_VERTICAL_BLANK[];
-extern const unsigned char gImage_SET_BLANK[];
-extern const unsigned char gImage_START_BLANK[];
-extern const unsigned char gImage_HELP_BLANK[];
-extern const unsigned char gImage_MENU_BLANK[];
+#define gImage_SD_LIST gImage_SD_LIST_BLANK
+#include "blank/SD_LIST.h"
+#undef gImage_SD_LIST
+#define gImage_SD_HORIZONTAL gImage_SD_HORIZONTAL_BLANK
+#include "blank/SD_HORIZONTAL.h"
+#undef gImage_SD_HORIZONTAL
+#define gImage_SD_VERTICAL gImage_SD_VERTICAL_BLANK
+#include "blank/SD_VERTICAL.h"
+#undef gImage_SD_VERTICAL
+#define gImage_SET gImage_SET_BLANK
+#include "blank/SET.h"
+#undef gImage_SET
+#define gImage_START gImage_START_BLANK
+#include "blank/START.h"
+#undef gImage_START
+#define gImage_HELP gImage_HELP_BLANK
+#include "blank/HELP.h"
+#undef gImage_HELP
+#define gImage_MENU gImage_MENU_BLANK
+#include "blank/MENU.h"
+#undef gImage_MENU
 #define gImage_icon_chip gImage_icon_chip_BLANK
 #include "blank/icon_chip.h"
 #undef gImage_icon_chip
@@ -162,13 +176,27 @@ extern const unsigned char gImage_MENU_BLANK[];
 #define gImage_icon_folder gImage_icon_folder_PURPLE
 #include "purple/icon_folder.h"
 #undef gImage_icon_folder
-extern const unsigned char gImage_SD_LIST_DARK[];
-extern const unsigned char gImage_SD_HORIZONTAL_DARK[];
-extern const unsigned char gImage_SD_VERTICAL_DARK[];
-extern const unsigned char gImage_SET_DARK[];
-extern const unsigned char gImage_START_DARK[];
-extern const unsigned char gImage_HELP_DARK[];
-extern const unsigned char gImage_MENU_DARK[];
+#define gImage_SD_LIST gImage_SD_LIST_DARK
+#include "dark/SD_LIST.h"
+#undef gImage_SD_LIST
+#define gImage_SD_HORIZONTAL gImage_SD_HORIZONTAL_DARK
+#include "dark/SD_HORIZONTAL.h"
+#undef gImage_SD_HORIZONTAL
+#define gImage_SD_VERTICAL gImage_SD_VERTICAL_DARK
+#include "dark/SD_VERTICAL.h"
+#undef gImage_SD_VERTICAL
+#define gImage_SET gImage_SET_DARK
+#include "dark/SET.h"
+#undef gImage_SET
+#define gImage_START gImage_START_DARK
+#include "dark/START.h"
+#undef gImage_START
+#define gImage_HELP gImage_HELP_DARK
+#include "dark/HELP.h"
+#undef gImage_HELP
+#define gImage_MENU gImage_MENU_DARK
+#include "dark/MENU.h"
+#undef gImage_MENU
 #define gImage_icon_chip gImage_icon_chip_DARK
 #include "dark/icon_chip.h"
 #undef gImage_icon_chip

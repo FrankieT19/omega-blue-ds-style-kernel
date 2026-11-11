@@ -1,4 +1,3 @@
-#include "blue_artwork_bridge.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdarg.h>
@@ -52,7 +51,7 @@ void IWRAM_CODE ClearWithBG(u16* pbg,u16 x, u16 y, u16 w, u16 h, u8 isDrawDirect
     ww  = (x+w>240)?(240-x):w;
 
 	for(yi=y; yi < hh; yi++)
-		BlueArtwork_Restore(pbg, 240, p + yi*240+x, x, yi, ww);       
+		dmaCopy(pbg+yi*240+x,p+yi*240+x,ww*2);
 }
 //******************************************************************************
 void IWRAM_CODE DrawPic(u16 *GFX, u16 x, u16 y, u16 w, u16 h, u8 isTrans, u16 tcolor, u8 isDrawDirect)
@@ -81,7 +80,7 @@ void IWRAM_CODE DrawPic(u16 *GFX, u16 x, u16 y, u16 w, u16 h, u8 isTrans, u16 tc
 	else
 	{
 		for(yi=y; yi < hh; yi++)
-			BlueArtwork_Restore(GFX, w, p + yi*240+x, 0, yi-y, ww); 
+			dmaCopy(GFX+(yi-y)*w,p+yi*240+x,w*2);
 	}
 }
 //---------------------------------------------------------------------------------
