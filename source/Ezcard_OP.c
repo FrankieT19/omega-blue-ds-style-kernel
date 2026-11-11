@@ -609,13 +609,15 @@ void IWRAM_CODE FW_update(u16 DEcard_FW_readver,u16 FW_built_in_ver,void* FWbina
 // --------------------------------------------------------------------
 void IWRAM_CODE Check_FW_update(/*u16 Current_FW_ver,u16 Built_in_ver*/)
 {
+	extern unsigned char ASC_DATA_OLD[];
+	extern unsigned char *ASC_DATA;
+	ASC_DATA = ASC_DATA_OLD;
 	u16 DEcard_FW_readver = Read_FPGA_ver();
 	u16 DEcard_FW_ver = DEcard_FW_readver & 0x00FF;
 
 	if(DEcard_FW_ver < LX16_FW_built_in_ver){
-		/* Test kernels must not write FPGA firmware. */
-        DrawHZText12("Install official Blue firmware first.",0,3,38,0x7fff,1);
-        while(1) VBlankIntrWait();
+		FW_update(DEcard_FW_readver, LX16_FW_built_in_ver, LX16_newomega_top_bin_address,
+		          LX16_newomega_top_bin_size, LX16_FW_crc32, LX16_wirte_address);
 	}
 		
 }

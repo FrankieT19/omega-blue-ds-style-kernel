@@ -1,5 +1,12 @@
 # Changelog
 
+## v8.1 Blue Test 4
+
+- Allow large-ROM add-ons on SD and NOR when the patch and scratch space fit.
+- Restore the stock Blue firmware update prompt and graphical NOR usage map.
+- Support stock NOR save-state entries when the original sector map matches.
+- Store the DS Style launch preference separately from Blue's Mode B setting.
+
 ## v8.1 Blue Test 3
 
 - Protect a pending battery save from being overwritten if its backup fails.

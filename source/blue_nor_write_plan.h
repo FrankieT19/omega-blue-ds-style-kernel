@@ -10,7 +10,7 @@ static int Blue_NORWritePlan(u32 size, int patched, u32 trim, u32 *program, u32 
     u32 end = size;
     if(patched)
     {
-        if(size > 0x2000000 || trim < 0xc0 || (trim & 3) ||
+        if(trim < 0xc0 || (trim & 3) ||
            trim > 0x2000000 - BLUE_NOR_PATCH_RESERVE ||
            (trim & (BLUE_NOR_SECTOR_SIZE - 1)) > BLUE_NOR_SECTOR_SIZE - BLUE_NOR_PATCH_RESERVE)
             return 0;

@@ -474,7 +474,9 @@ u32 Setting_window2(void)
 								case 3:
 									save_set2_info();
 									Set_OK = 0;
-									gl_boot_mode_pref = (Read_SET_info(assress_ModeB_INIT) >> 8) & 0x00FF;
+									gl_boot_mode_pref = Read_SET_info(assress_blue_boot_pref);
+									if((gl_boot_mode_pref & 0xfffcu) == BLUE_BOOT_PREF_TAG) gl_boot_mode_pref &= 3;
+									else gl_boot_mode_pref = Read_SET_info(assress_ModeB_INIT) >> 8;
 									if((gl_boot_mode_pref != 0x0) && (gl_boot_mode_pref != 0x1) && (gl_boot_mode_pref != 0x2))
 										gl_boot_mode_pref = 0x0;
 									play_accept_sfx = 1;
@@ -572,7 +574,8 @@ void save_set2_info(void)
 		SET_info_buffer[address] = Read_SET_info(address);
 	}
 	SET_info_buffer[assress_auto_save_sel] = (auto_save_sel & 0x00FF) | ((resume_last_on & 0x00FF) << 8);
-	SET_info_buffer[assress_ModeB_INIT] = (ModeB_INIT & 0x00FF) | ((boot_mode_pref & 0x00FF) << 8);
+	SET_info_buffer[assress_ModeB_INIT] = ModeB_INIT;
+	SET_info_buffer[assress_blue_boot_pref] = BLUE_BOOT_PREF_TAG | boot_mode_pref;
 	SET_info_buffer[assress_led_open_sel] = led_open_sel;
 	SET_info_buffer[assress_Breathing_R] = Breathing_R;
 	SET_info_buffer[assress_Breathing_G] = Breathing_G;

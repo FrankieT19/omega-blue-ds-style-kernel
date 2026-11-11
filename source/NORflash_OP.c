@@ -334,8 +334,7 @@ u32 IWRAM_CODE Loadfile2NOR(TCHAR *filename, u32 NORaddress, u16 have_patch, u8 
     u32 program_size, allocation_size;
     FM_NOR_FS entry = {0};
     UINT got;
-    if((filesize > 0x2000000 && !flag_64MBrom) ||
-       !Blue_NORWritePlan(filesize, have_patch, iTrimSize, &program_size, &allocation_size) ||
+    if(!Blue_NORWritePlan(filesize, have_patch, iTrimSize, &program_size, &allocation_size) ||
        f_lseek(&gfile, 0xa0) != FR_OK ||
        f_read(&gfile, entry.gamename, sizeof(entry.gamename), &got) != FR_OK ||
        got != sizeof(entry.gamename) || f_lseek(&gfile, 0) != FR_OK)

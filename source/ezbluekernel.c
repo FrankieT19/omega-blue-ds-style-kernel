@@ -4997,7 +4997,14 @@ u32 IWRAM_CODE Loadfile2PSRAM(TCHAR *filename)
                 Clear(78+54,160-15,110,15,gl_color_cheat_black,1);
                 DrawHZText12(msg,0,78+54,160-15,gl_color_text,1);
             }
-			f_read(&gfile, pReadCache, 0x20000, &ret);//pReadCache max 0x20000 Byte
+			UINT count = filesize - blocknum < 0x20000 ? filesize - blocknum : 0x20000;
+			if(count < 0x20000) memset(pReadCache, 0xff, 0x20000);
+			if(f_read(&gfile, pReadCache, count, &ret) != FR_OK || ret != count)
+			{
+				f_close(&gfile);
+				SetPSRampage(0);
+				return 1;
+			}
 
 			if((gl_reset_on==1) || (gl_rts_on==1) || (gl_sleep_on==1) || (gl_cheat_on==1))
 			{
@@ -5015,9 +5022,9 @@ u32 IWRAM_CODE Loadfile2PSRAM(TCHAR *filename)
 			dmaCopy((void*)pReadCache,PSRAMBase_S98+Address, 0x20000);
 			page = 0;
 		}
-		f_close(&gfile);
+		res = f_close(&gfile);
 		SetPSRampage(0);
-		return 0;
+		return res != FR_OK;
 	}
 	else
 	{
@@ -5094,7 +5101,8 @@ void CheckSwitch(void)
 	{
 		u16 modeb_raw = Read_SET_info(assress_ModeB_INIT);
 		gl_ModeB_init = modeb_raw & 0x00FF;
-		gl_boot_mode_pref = (modeb_raw >> 8) & 0x00FF;
+		u16 boot_pref = Read_SET_info(assress_blue_boot_pref);
+		gl_boot_mode_pref = (boot_pref & 0xfffcu) == BLUE_BOOT_PREF_TAG ? boot_pref & 3 : modeb_raw >> 8;
 		if( (gl_ModeB_init != 0x0) && (gl_ModeB_init != 0x1)  && (gl_ModeB_init != 0x2))
 		{
 			gl_ModeB_init = 0x2;
@@ -9252,7 +9260,8 @@ static void Launcher_SaveSettingsInfo(void)
     SET_info_buffer[assress_show_Thumbnail] = gl_show_Thumbnail;
     SET_info_buffer[assress_ingame_RTC_open_status] = gl_ingame_RTC_open_status;
     SET_info_buffer[assress_auto_save_sel] = (u16)((gl_resume_last_on << 8) | gl_auto_save_sel);
-    SET_info_buffer[assress_ModeB_INIT] = (u16)((gl_boot_mode_pref << 8) | gl_ModeB_init);
+    SET_info_buffer[assress_ModeB_INIT] = gl_ModeB_init;
+    SET_info_buffer[assress_blue_boot_pref] = BLUE_BOOT_PREF_TAG | gl_boot_mode_pref;
     SET_info_buffer[assress_led_open_sel] = gl_led_open_sel;
     SET_info_buffer[assress_Breathing_R] = gl_Breathing_R;
     SET_info_buffer[assress_Breathing_G] = gl_Breathing_G;
@@ -14042,7 +14051,10 @@ static u32 Get_path_depth(const TCHAR *path)
 #include "system_browser.h"
 
 #include "blue_nor.h"
+#include "blue_nor_write_plan.h"
+#include "blue_large_rom.h"
 #include "blue_nor_state.h"
+#include "blue_legacy_nor.h"
 #include "game_return.h"
 
 int main(void) {
@@ -15813,7 +15825,15 @@ re_showfile:
                     for(u32 i = 0; i < NOR_FAT_SIZE; i++) blocks += !!NOR_FAT_buffer[i];
                     snprintf(used,sizeof(used),"NOR used: %lu/%lu MiB",(blocks + 7) / 8,
                              (u32)(NOR_FAT_SIZE / 8));
-                    Launcher_ShowLaunchError(used);
+                    Launcher_DrawPopupPanel(36, 25);
+                    DrawHZText12(used, 0, 47, 40, gl_color_text, 1);
+                    for(unsigned i = 0; i < NOR_FAT_SIZE; ++i)
+                    {
+                        unsigned x = 56 + (i % 64) * 2;
+                        unsigned y = 56 + (i / 64) * 4;
+                        u16 color = NOR_FAT_buffer[i] ? gl_color_selectBG_sd : gl_color_text;
+                        for(unsigned row = 0; row < 3; ++row) ((vu16*)VideoBuffer)[(y + row) * 240 + x] = color;
+                    }
                     wait_btn();
                     launcher_force_full_redraw = 1;
                     goto re_showfile;
@@ -15898,13 +15918,6 @@ void Boot_NOR_game(u32 show_offset,	u32 file_select,u32 key_L)
         return;
     }
     const FM_NOR_FS *entry = &pNorFS[show_offset+file_select];
-    if(entry->have_patch && entry->have_RTS &&
-       (entry->have_patch != 2 || entry->have_RTS != 2 || entry->reserved2 != 0x4252))
-    {
-        Launcher_ShowLaunchError("NOR entry contains an embedded RTS map.");
-        wait_btn();
-        return;
-    }
 	Launcher_RestoreLaunchMenu(show_offset, file_select);
 	Launcher_ConfirmLaunch(0);
 	UIAudio_StopForSharedBufferUse();
@@ -15919,6 +15932,23 @@ void Boot_NOR_game(u32 show_offset,	u32 file_select,u32 key_L)
 	//DrawHZText12(gl_Loading,0,(240-strlen(gl_Loading)*6)/2,74, gl_color_text,1);
 
 	init_FAT_table();
+	int native_state = entry->have_patch == 2 && entry->have_RTS == 2 && entry->reserved2 == 0x4252;
+	if(entry->have_patch && entry->have_RTS)
+	{
+		u32 key = native_state ? Blue_NORStateKey(entry) : 0;
+		ShowbootProgress(gl_check_RTS);
+		if(!(native_state ? Blue_PrepareNORState(key) : Blue_PrepareLegacyNORState(entry)))
+		{
+			if(native_state) Show_error_num(6);
+			else
+			{
+				Launcher_ShowLaunchError("Stock NOR state does not match. Rewrite from SD.");
+				wait_btn();
+			}
+			return;
+		}
+		ds_return.nor_state_key = key;
+	}
 
 	res = f_mkdir(SAVER_FOLDER);//"/SAVER"
 	if((res != FR_OK) && (res != FR_EXIST)){
@@ -15941,18 +15971,6 @@ void Boot_NOR_game(u32 show_offset,	u32 file_select,u32 key_L)
 	}
 
 	Set_64MROM_flag(pNorFS[show_offset+file_select].is_64MBrom);
-	if(pNorFS[show_offset+file_select].have_patch && pNorFS[show_offset+file_select].have_RTS)
-	{
-		ShowbootProgress(gl_check_RTS);
-		u32 key = Blue_NORStateKey(entry);
-		if(!Blue_PrepareNORState(key))
-		{
-			error_num = 6;
-			Show_error_num(error_num);
-			return;
-		}
-		ds_return.nor_state_key = key;
-	}
 
 	FAT_table_buffer[0x1F4/4] = SET_PARAMETER_MODE;
 	Send_FATbuffer(FAT_table_buffer,1); //only RTS FAT and some parameter
@@ -16516,6 +16534,7 @@ load_file:
 
 	u32 gamefilesize=0;
 	u16 flag_64MBrom = 0;
+	u32 large_patch_offset = 0;
 	//u32 savefilesize=0;
 	u32 ret;
 	u32 have_pat=0;
@@ -16547,9 +16566,14 @@ load_file:
 
     if((MENU_line == 1 || MENU_line == 3) && gamefilesize > 0x2000000)
     {
-        Launcher_ShowLaunchError("Use Clean boot for ROMs over 32 MiB.");
-        wait_btn();
-        return 0;
+        large_patch_offset = Blue_PrepareLargeAddon(pfilename, gamefilesize, MENU_line == 1,
+                                                   Read_SET_info(assress_v_rts) == 1);
+        if(!large_patch_offset)
+        {
+            Launcher_ShowLaunchError("No safe add-on space. Try Clean boot or NOR.");
+            wait_btn();
+            return 0;
+        }
     }
 
 	SAVEMODE = Get_saveMODE(Save_num,gamefilesize);
@@ -16561,7 +16585,7 @@ load_file:
 			return 0;
 		}
 		if(!gamefilesize || gamefilesize > 0x4000000 ||
-           (gamefilesize > 0x2000000 && !flag_64MBrom) || (is_EMU && gamefilesize > 0x7e0000)){
+           (is_EMU && gamefilesize > 0x7e0000)){
 			Launcher_ShowLaunchError(gl_file_overflow);
 			wait_btn();
 			return 0;
@@ -16650,6 +16674,16 @@ load_file:
 				gl_cheat_on = Read_SET_info(assress_v_cheat);
 				if((gl_reset_on==1) || (gl_rts_on==1) || (gl_sleep_on==1) || (gl_cheat_on==1))
 				{
+					if(large_patch_offset)
+					{
+						GBA_patch_init();
+						iTrimSize = large_patch_offset;
+						FAT_table_buffer[0x1F4/4] = SET_PARAMETER_MODE;
+						Send_FATbuffer(FAT_table_buffer,1);
+						if(Loadfile2PSRAM(pfilename)) { Show_error_num(1); return 0; }
+						if(gl_rts_on == 1 && !Check_RTS(pfilename)) { Show_error_num(6); return 0; }
+						goto apply_blue_addons;
+					}
 					if(gl_rts_on==1)
 					{
 						ShowbootProgress(gl_check_RTS);
@@ -16699,6 +16733,7 @@ load_file:
 							}
 						}
 					}
+			apply_blue_addons:
 			Patch_SpecialROM_sleepmode();//
 			GBApatch_DDR(PSRAMBase_S98,gamefilesize,0x400);
             DSStyle_ArmReturn(0, pfilename);
@@ -16750,6 +16785,9 @@ load_file:
 				if((gl_reset_on==1) || (gl_rts_on==1) || (gl_sleep_on==1) || (gl_cheat_on==1))
 		{
 			Patch_SpecialROM_sleepmode();//
+					if(large_patch_offset) iTrimSize = large_patch_offset;
+					else
+					{
 
 					//get the location of the patch
 					UIAudio_StopForSharedBufferUse();
@@ -16773,6 +16811,7 @@ load_file:
 					/* A single trailing byte cannot be sampled by the trim scan. */
 					if(want == 1) iTrimSize = (gamefilesize + 15) & ~15u;
 					else SetTrimSize(pReadCache,gamefilesize,0x20000,0x1,SAVEMODE);
+					}
 					needpatch = 1;
 				}
                 res = Loadfile2NOR(pfilename,0,needpatch,SAVEMODE,flag_64MBrom);

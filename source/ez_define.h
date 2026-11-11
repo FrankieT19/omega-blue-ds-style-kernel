@@ -96,7 +96,9 @@
 #define assress_toggle_backup 24
 
 #define assress_saveMODE 64
-#define assress_max 65
+#define assress_blue_boot_pref 65
+#define BLUE_BOOT_PREF_TAG 0x4450u
+#define assress_max 66
 
 
 

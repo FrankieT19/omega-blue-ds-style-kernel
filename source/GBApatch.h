@@ -60,6 +60,7 @@ extern void Fire_Emblem_iQue_patch_end(void);
 
 extern u32 gl_cheat_count;
 extern u32 iTrimSize;
+void GBA_patch_init(void);
 
 
 void GBApatch_Cleanrom(u32* address,int filesize);
