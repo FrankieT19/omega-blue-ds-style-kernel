@@ -42,5 +42,4 @@ copies under `SYSTEM/PLUG/BLUE` as `txt.bin`, `md.bin` and `markdown.bin`.
 DS Style by FrankieT19. Original Blue and Omega kernel source by EZ-FLASH.
 PogoShell integration in DS Style was inherited from Simple by Sterophonick.
 Thai language support by aidiadayo. Contributions by Merkin and tindmackey.
-In-game return work is adapted from Slot. Advance. See [Notices](NOTICE.md)
-for source and licence details.
+See [Notices](NOTICE.md) for source and licence details.
