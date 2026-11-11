@@ -604,10 +604,11 @@ is_loadRTS:
     adrl r0,Blue_NOR_RTS_Key
     ldr r0,[r0]
     cmp r0,#0
-    beq blue_load_payload
+    beq blue_check_signature
     bl Blue_NOR_StateReady
     cmp r0,#0
     beq DDR_OP_code_exit
+blue_check_signature:
     sub sp,sp,#16
     ldr r0,=0x09082ff0
     mov r1,sp

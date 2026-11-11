@@ -323,151 +323,80 @@ void Check_NOR_flash(void)
 
 //-----------------------------------------------------------
 u32 blue_nor_write_state_key;
+#include "blue_nor_write_plan.h"
 
-u32 IWRAM_CODE Loadfile2NOR(TCHAR *filename, u32 NORaddress,u16 have_patch,u8 SAVEMODE,u16 flag_64MBrom)
+u32 IWRAM_CODE Loadfile2NOR(TCHAR *filename, u32 NORaddress, u16 have_patch, u8 SAVEMODE, u16 flag_64MBrom)
 {
-	u32 res;
-	u32 ret;
-	u32 filesize;
-	u32 fileneedsize;
-	
-	u32 blocknum;
-	char msg[128];
-	FM_NOR_FS tmpNorFS = {0};
-	char temp[50];
-	char flag[4];
-	//u16 flag_64MBrom=0;
-	
-	//u16 readdata;
-	u32 add_patch = 0;
-			
-	u32 Real_block_addr;
-	
-	u16 norid = Read_S98NOR_ID();
-	
-	if(norid == NOR_ID)//S98
-	{	
-		res = f_open(&gfile, filename, FA_READ);
-		if(res != FR_OK) return 1;
-		
-		filesize = f_size(&gfile);
-        if(filesize < 0xc0 || filesize > 0x4000000 ||
-           (filesize > 0x2000000 && (!flag_64MBrom || have_patch)))
-        {
-            f_close(&gfile);
-            return 1;
-        }		
-		f_lseek(&gfile, 0xa0);		
-		if(f_read(&gfile,temp,0x10,(UINT*)&ret) != FR_OK || ret != 0x10)
+    (void)NORaddress;
+    if(Read_S98NOR_ID() != NOR_ID || f_open(&gfile, filename, FA_READ) != FR_OK) return 1;
+
+    u32 filesize = f_size(&gfile) <= 0x4000000 ? (u32)f_size(&gfile) : 0;
+    u32 program_size, allocation_size;
+    FM_NOR_FS entry = {0};
+    UINT got;
+    if((filesize > 0x2000000 && !flag_64MBrom) ||
+       !Blue_NORWritePlan(filesize, have_patch, iTrimSize, &program_size, &allocation_size) ||
+       f_lseek(&gfile, 0xa0) != FR_OK ||
+       f_read(&gfile, entry.gamename, sizeof(entry.gamename), &got) != FR_OK ||
+       got != sizeof(entry.gamename) || f_lseek(&gfile, 0) != FR_OK)
+    {
+        f_close(&gfile);
+        return 1;
+    }
+
+    u32 address = Blue_PrepareNORWrite() ? Find_NOR_space(allocation_size) : 0;
+    if(!address)
+    {
+        f_close(&gfile);
+        return 2;
+    }
+
+    gl_norOffset = address;
+    entry.rompage = address >> 17;
+    entry.filesize = allocation_size;
+    entry.have_patch = have_patch ? 2 : 0;
+    entry.have_RTS = have_patch && gl_rts_on == 1 ? 2 : 0;
+    entry.reserved2 = entry.have_RTS ? 0x4252 : 0;
+    entry.is_64MBrom = flag_64MBrom;
+    entry.savemode = SAVEMODE;
+    snprintf(entry.filename, sizeof(entry.filename), "%s", filename);
+    blue_nor_write_state_key = entry.have_RTS ? Blue_NORStateKey(&entry) : 0;
+
+    Clear(60, 145, 120, 15, gl_color_cheat_black, 1);
+    DrawHZText12(gl_writing, 0, 70, 145, gl_color_text, 1);
+    Chip_Reset();
+    for(u32 offset = 0; offset < program_size; offset += BLUE_NOR_SECTOR_SIZE)
+    {
+        char msg[32];
+        snprintf(msg, sizeof(msg), "%lu/%lu", offset / BLUE_NOR_SECTOR_SIZE + 1,
+                 program_size / BLUE_NOR_SECTOR_SIZE);
+        Clear(124, 145, 100, 15, gl_color_cheat_black, 1);
+        DrawHZText12(msg, 0, 124, 145, gl_color_text, 1);
+
+        UINT want = offset < filesize ? filesize - offset : 0;
+        if(want > BLUE_NOR_SECTOR_SIZE) want = BLUE_NOR_SECTOR_SIZE;
+        memset(pReadCache, 0xff, BLUE_NOR_SECTOR_SIZE);
+        if(want && (f_read(&gfile, pReadCache, want, &got) != FR_OK || got != want))
         {
             f_close(&gfile);
             return 1;
         }
-		f_lseek(&gfile, 0xB0);		
-		f_read(&gfile, flag, 0x4, (UINT *)&ret);//read flag
-		
-
-
-		memcpy(tmpNorFS.gamename,temp,0x10);
-		//tmpNorFS.rompage = NORaddress >> 17;
-		
-		fileneedsize = ((((filesize+0x3FFFF)/0x40000)*0x40000));
-		if(have_patch)
-		{			
-			if(iTrimSize>=fileneedsize)
-			{
-				fileneedsize = fileneedsize+0x40000;
-				add_patch = 1;
-			}
-		}		
-
-		
-		if(!Blue_PrepareNORWrite())
+        if(have_patch)
         {
-            f_close(&gfile);
-            return 2;
+            if(want) PatchInternal((u32*)pReadCache, BLUE_NOR_SECTOR_SIZE, offset);
+            GBApatch_NOR((u32*)pReadCache, BLUE_NOR_SECTOR_SIZE, offset, entry.rompage);
         }
-		u32 Write2Addr = Find_NOR_space(fileneedsize);
-		if(Write2Addr==0){f_close(&gfile);return 2;}
+        else GBApatch_Cleanrom_NOR((u32*)pReadCache, offset);
 
-		gl_norOffset = Write2Addr;	
-			
-		tmpNorFS.rompage = Write2Addr >> 17;
-				
-		tmpNorFS.filesize = fileneedsize;
-		tmpNorFS.have_patch = have_patch ? 2 : 0;
-		tmpNorFS.have_RTS = have_patch && gl_rts_on == 1 ? 2 : 0;
-		tmpNorFS.reserved2 = tmpNorFS.have_RTS ? 0x4252 : 0;
-		tmpNorFS.is_64MBrom = flag_64MBrom;
-		tmpNorFS.savemode = SAVEMODE;
-		
-		snprintf(tmpNorFS.filename,sizeof(tmpNorFS.filename),"%s",filename);
-		blue_nor_write_state_key = tmpNorFS.have_RTS ? Blue_NORStateKey(&tmpNorFS) : 0;
-		dmaCopy(&tmpNorFS,&pNorFS[game_total_NOR], sizeof(FM_NOR_FS));
- 
-		Clear(60,160-15,120,15,gl_color_cheat_black,1);	
-		DrawHZText12(gl_writing,0,70,160-15,gl_color_text,1);	
-		
-		Chip_Reset();	
+        Block_Erase(address + offset);
+        WriteFlash_with64word(address + offset, pReadCache, BLUE_NOR_SECTOR_SIZE);
+    }
+    if(f_close(&gfile) != FR_OK) return 1;
 
-		f_lseek(&gfile, 00);
-		for(blocknum=0;blocknum<filesize;blocknum+=0x20000)
-		{		
-			//Real_block_addr = Get_map_addr(blocknum);
-			
-			sprintf(msg,"%luMb/%luMb",(blocknum)/0x20000,filesize/0x20000);
-			Clear(70+54,160-15,100,15,gl_color_cheat_black,1);
-			DrawHZText12(msg,0,70+54,160-15,gl_color_text,1);
-			
-			//Block_Erase(blocknum+NORaddress);
-
-			//f_lseek(&gfile, blocknum);
-			UINT wanted = filesize - blocknum < 0x20000 ? filesize - blocknum : 0x20000;
-            memset(pReadCache,0xff,0x20000);
-            if(f_read(&gfile,pReadCache,wanted,(UINT*)&ret) != FR_OK || ret != wanted)
-            {
-                f_close(&gfile);
-                return 1;
-            }
-			if(have_patch){
-				if((gl_reset_on==1) || (gl_rts_on==1) || (gl_sleep_on==1) || (gl_cheat_on==1))		    
-				{
-					PatchInternal((u32*)pReadCache,0x20000,blocknum);	
-					GBApatch_NOR((u32*)pReadCache,0x20000,blocknum,tmpNorFS.rompage);//some nes need check				
-				}
-			}
-			else{
-				GBApatch_Cleanrom_NOR((u32*)pReadCache,blocknum);
-			}
-
-			Block_Erase(blocknum + Write2Addr);		
-			WriteFlash_with64word(blocknum + Write2Addr,pReadCache,0x20000);
-
-		}
-		f_close(&gfile);
-		
-		if(have_patch)
-		{
-			if(add_patch)
-			{
-				Block_Erase(blocknum+Write2Addr);
-				GBApatch_NOR((u32*)pReadCache,0x20000,blocknum,tmpNorFS.rompage);
-				WriteFlash_with64word(blocknum+Write2Addr,pReadCache,0x20000);
-			}
-		}
-		
-		Save_NORgame_info((u16*)pNorFS,sizeof(pNorFS));
-        Save_NOR_FAT_info();
-		//wait_btn();	
-		return 0;
-	}		
-	else
-	{
-		#ifdef DEBUG
-			//DEBUG_printf("Bad NOR ID");
-		#endif
-		return 1;
-	}
+    pNorFS[game_total_NOR] = entry;
+    Save_NORgame_info((u16*)pNorFS, sizeof(pNorFS));
+    Save_NOR_FAT_info();
+    return 0;
 }
 //-----------------------------------------------------------
 void* IWRAM_CODE my_memcpy(void *destination, const void *source, u32 num)

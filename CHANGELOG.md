@@ -1,5 +1,13 @@
 # Changelog
 
+## v8.1 Blue Test 3
+
+- Protect a pending battery save from being overwritten if its backup fails.
+- Reject empty or unsigned SD save states before restoring game memory.
+- Include the add-on sector when it falls beyond the ROM data in a NOR write.
+- Recognise factory-erased NOR metadata without writing during browsing.
+- Verify the complete kernel payload before staging a style.
+
 ## v8.1 Blue Test 2
 
 - Added PogoShell loading and bundled the Blue text and Markdown viewer.

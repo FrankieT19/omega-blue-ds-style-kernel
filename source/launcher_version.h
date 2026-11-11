@@ -1,6 +1,6 @@
 #ifndef LAUNCHER_VERSION_H
 #define LAUNCHER_VERSION_H
 
-#define LAUNCHER_VERSION_TEXT "v8.1 Blue Test 2"
+#define LAUNCHER_VERSION_TEXT "v8.1 Blue Test 3"
 
 #endif

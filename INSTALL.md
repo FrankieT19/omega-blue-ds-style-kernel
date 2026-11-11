@@ -1,4 +1,4 @@
-# DS Style v8.1 Blue Test 2
+# DS Style v8.1 Blue Test 3
 
 ## Before installing
 
@@ -38,10 +38,9 @@ on a cart with anything in NOR that you cannot replace.
 5. Only after basic tests pass, try NOR with disposable content. Press
    **Start** in NOR to see usage. Test writing several small games, deleting
    the middle entry, and writing again into the freed space. If the NOR
-   is blank and has never been used, boot the official kernel first so it
-   can initialise its allocation table. The test refuses to write if the
-   allocation table and game records disagree. Do not format NOR to work
-   around this on a cart that contains anything you want to keep.
+   is factory-erased, the test recognises it as empty. It still refuses to
+   write if the allocation table and game records disagree. Do not format
+   NOR to work around this on a cart containing anything you want to keep.
 6. Open a `.txt`, `.md` and `.markdown` file. Check that the correct file
    opens and that **B** returns to DS Style. Optional Blue-compatible
    PogoShell plugins go in `SYSTEM/PLUG/BLUE`, named for the file extension.
@@ -72,11 +71,17 @@ Do not move or import stock save states into the test.
   need them; reinstalling stock does not remove them.
 - ROMs over 32 MiB are clean-boot only and must use Blue's supported
   large-ROM format. Native NES uses the Blue stock emulator.
-- Load style accepts DS Style kernels built for this Blue layout. The
+- Load style accepts checksummed Blue builds starting with Test 3. Older
+  test builds lack the checksum and are not accepted by Load style. The
   current Customiser and browser installer are not for Blue. Third-party
   plugins may still need their exit code adapted for Blue.
 - Hardware verification is still needed for install and rollback, FRAM,
   Mode B, 64 MiB ROMs, NOR writes and the physical warm-return path.
+
+If a battery-save backup fails, launches and manual FRAM transfers are
+blocked to protect the pending save. Correct the SD problem and restart
+with the same cartridge and card to retry. Do not discard the pending save
+unless you intend to lose that progress.
 
 ## Report a problem
 

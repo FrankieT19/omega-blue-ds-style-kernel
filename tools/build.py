@@ -10,6 +10,7 @@ import zlib
 ROOT = Path(__file__).resolve().parents[1]
 TAIL = 0x100000
 FW = 0x195000
+STYLE_SEAL = FW - 16
 FW_SIZE = 0x716A0
 FW_CRC = 0x22DD74FA
 VENDOR_SHA256 = "be609b61939eaa19b97b81345f8e44e7c97b819fb76d230553d40f2d28688644"
@@ -44,13 +45,15 @@ def patch_entry(payload, boot, wrapper):
 
 
 def pack(payload, vendor):
-    if len(payload) >= FW:
-        raise RuntimeError("Kernel overlaps the fixed Blue firmware payload")
+    if len(payload) > STYLE_SEAL:
+        raise RuntimeError("Kernel overlaps the Blue style seal or firmware payload")
     if sha(vendor) != VENDOR_SHA256:
         raise RuntimeError("Wrong vendor image. Use image.bin from the pinned Blue source.")
     image = bytearray(TAIL + len(vendor))
     image[TAIL:] = vendor
     image[:len(payload)] = payload
+    crc = zlib.crc32(memoryview(image)[:STYLE_SEAL])
+    struct.pack_into("<8sII", image, STYLE_SEAL, b"DSBLUE3\0", crc, crc ^ 0xffffffff)
     if zlib.crc32(image[FW:FW + FW_SIZE]) != FW_CRC or image[FW:] != vendor[FW - TAIL:]:
         raise RuntimeError("The vendor firmware region changed")
     return image
@@ -122,6 +125,8 @@ def build(sdk, flashable):
     patch = symbols(nm, output / "gba_rts_patch.o")
     if not 0 < patch["DDR_OP_code_end"] - patch["DDR_OP_code"] <= 0x7f0:
         raise RuntimeError("Blue add-on DDR helper overlaps the return cookie")
+    if patch["RTS_ReplaceIRQ_end"] - patch["RTS_ReplaceIRQ_start"] > 0x2000:
+        raise RuntimeError("Blue add-on exceeds the NOR patch reservation")
     run(objcopy,"-O","binary",elf,rom)
     gbafix = executable(sdk/"tools/bin", "gbafix")
     run(gbafix,rom,"-tDSBLUE","-c0000","-m00")

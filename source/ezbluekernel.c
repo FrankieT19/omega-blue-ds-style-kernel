@@ -9126,6 +9126,7 @@ void Check_save_flag(void)
                 Launcher_DrawThemeBGFull(Launcher_GetBGImage());
                 Launcher_ShowLaunchError(gl_error_5);
                 Launcher_RevealReturn();
+                wait_btn();
             }
 
 	}
@@ -15890,6 +15891,12 @@ static void Launcher_ConfirmLaunch(u32 pulse)
 void Boot_NOR_game(u32 show_offset,	u32 file_select,u32 key_L)
 {
     if(show_offset >= game_total_NOR || file_select >= game_total_NOR - show_offset) return;
+    if(Read_sav_info(0) == 0x11)
+    {
+        Launcher_ShowLaunchError("Save backup pending. Restart to retry.");
+        wait_btn();
+        return;
+    }
     const FM_NOR_FS *entry = &pNorFS[show_offset+file_select];
     if(entry->have_patch && entry->have_RTS &&
        (entry->have_patch != 2 || entry->have_RTS != 2 || entry->reserved2 != 0x4252))
@@ -15964,6 +15971,7 @@ void Boot_NOR_game(u32 show_offset,	u32 file_select,u32 key_L)
 //---------------------------------------------------------------
 u8 FRAM_save_op(u8 OP)
 {
+    if(Read_sav_info(0) == 0x11) return 5;
     if(!game_total_NOR || pNorFS[0].rompage != (First_game_address >> 17)) return 5;
 	u32 res;
 	u32 savefilesize=0;
@@ -16546,6 +16554,12 @@ load_file:
 
 	SAVEMODE = Get_saveMODE(Save_num,gamefilesize);
 	if(MENU_line<2){//work for psram
+		if(Read_sav_info(0) == 0x11)
+		{
+			Launcher_ShowLaunchError("Save backup pending. Restart to retry.");
+			wait_btn();
+			return 0;
+		}
 		if(!gamefilesize || gamefilesize > 0x4000000 ||
            (gamefilesize > 0x2000000 && !flag_64MBrom) || (is_EMU && gamefilesize > 0x7e0000)){
 			Launcher_ShowLaunchError(gl_file_overflow);
@@ -16722,6 +16736,7 @@ load_file:
 					wait_btn();
 					return 1;
 				}
+				Show_error_num(1);
 		break;
 	case 3://WRITE TO NOR ADDON
 		UIAudio_StopForSharedBufferUse();
@@ -16739,12 +16754,25 @@ load_file:
 					//get the location of the patch
 					UIAudio_StopForSharedBufferUse();
 					res = f_open(&gfile,pfilename, FA_READ);
-					if(res==FR_OK){
-						f_lseek(&gfile, (gamefilesize-1)&0xFFFE0000);
-						f_read(&gfile, pReadCache, 0x20000, (UINT*)&ret);
-						f_close(&gfile);
-						SetTrimSize(pReadCache,gamefilesize,0x20000,0x1,SAVEMODE);
+					if(res != FR_OK || gamefilesize < 0xc0)
+					{
+						if(res == FR_OK) f_close(&gfile);
+						Show_error_num(1);
+						return 0;
 					}
+					u32 tail = (gamefilesize - 1) & 0xfffe0000;
+					UINT want = gamefilesize - tail;
+					memset(pReadCache, 0xff, 0x20000);
+					int ok = f_size(&gfile) == gamefilesize && f_lseek(&gfile, tail) == FR_OK &&
+					         f_read(&gfile, pReadCache, want, (UINT*)&ret) == FR_OK && ret == want;
+					if(f_close(&gfile) != FR_OK || !ok)
+					{
+						Show_error_num(1);
+						return 0;
+					}
+					/* A single trailing byte cannot be sampled by the trim scan. */
+					if(want == 1) iTrimSize = (gamefilesize + 15) & ~15u;
+					else SetTrimSize(pReadCache,gamefilesize,0x20000,0x1,SAVEMODE);
 					needpatch = 1;
 				}
                 res = Loadfile2NOR(pfilename,0,needpatch,SAVEMODE,flag_64MBrom);
@@ -16766,6 +16794,8 @@ load_file:
 					wait_btn();
 					return 0;
 				}
+				Launcher_ShowLaunchError("NOR write failed. Try without add-ons.");
+				wait_btn();
 		break;
 	default:
 		break;

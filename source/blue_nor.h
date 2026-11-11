@@ -8,6 +8,13 @@ _Static_assert((NOR_end_address - First_game_address) / 0x20000 == NOR_FAT_SIZE,
 
 static unsigned blue_nor_can_write;
 
+static int Blue_IsErased(const void *data, unsigned size)
+{
+    const u8 *bytes = data;
+    while(size--) if(*bytes++ != 0xff) return 0;
+    return 1;
+}
+
 static int Blue_NORExtent(const FM_NOR_FS *entry, u32 *start, u32 *length)
 {
     const u32 first = First_game_address >> 17;
@@ -25,6 +32,10 @@ static void Blue_ReadNOR(void)
     blue_nor_can_write = 1;
     Read_NORgame_info();
     Read_NOR_FAT_info();
+    /* Recognize a factory-erased table in RAM; only a write commits it. */
+    if(Blue_IsErased(pNorFS, sizeof(pNorFS)) &&
+       Blue_IsErased(NOR_FAT_buffer, sizeof(NOR_FAT_buffer)))
+        memset(NOR_FAT_buffer, 0, sizeof(NOR_FAT_buffer));
     for(unsigned i = 0; i < MAX_NOR; i++)
     {
         FM_NOR_FS *entry = &pNorFS[i];
