@@ -683,7 +683,8 @@ typedef union
 	u16 list_art[LAUNCHER_LIST_ART_CACHE_COUNT][90 * 60];
 } LauncherThumbnailRenderWorkspace;
 
-static LauncherThumbnailRenderWorkspace launcher_thumbnail_workspace EWRAM_BSS;
+/* The carousel also stores word-aligned pointers in this workspace. */
+static LauncherThumbnailRenderWorkspace launcher_thumbnail_workspace EWRAM_BSS __attribute__((aligned(4)));
 static u8 launcher_thumbnail_workspace_mode = 0xFF;
 #define launcher_side_preview_left launcher_thumbnail_workspace.horizontal.left
 #define launcher_side_preview_right launcher_thumbnail_workspace.horizontal.right
@@ -1342,7 +1343,7 @@ static volatile u8 g_ui_audio_active = 0;
 static volatile u8 g_ui_audio_uses_shared_buffer = 0;
 
 static void UIAudio_Stop(void);
-static void UIAudio_Timer1IRQ(void);
+static void IWRAM_CODE UIAudio_Timer1IRQ(void);
 
 static void UIAudio_StopForSharedBufferUse(void)
 {
@@ -1424,7 +1425,7 @@ static u32 UIAudio_PrepareBuffer(const signed char *data, u32 len, u32 allow_sha
 }
 
 
-static void UIAudio_StopHardware(void)
+static inline __attribute__((always_inline)) void UIAudio_StopHardware(void)
 {
     REG_DMA1CNT_UI = 0;
     REG_TM0CNT_H_UI = 0;
@@ -1446,14 +1447,9 @@ static void UIAudio_Stop(void)
     delay(8);
 }
 
-static void UIAudio_StopFromTimer(void)
+static void IWRAM_CODE UIAudio_Timer1IRQ(void)
 {
     UIAudio_StopHardware();
-}
-
-static void UIAudio_Timer1IRQ(void)
-{
-    UIAudio_StopFromTimer();
 }
 
 static void UIAudio_Update(void)
@@ -4969,7 +4965,7 @@ u8 Get_saveMODE(u8 Save_num,u32 gamefilesize)
 	return saveMODE;
 }
 //---------------------------------------------------------------
-u32 IWRAM_CODE Loadfile2PSRAM(TCHAR *filename)
+static u32 IWRAM_CODE Loadfile2PSRAM(TCHAR *filename, u32 expected_size, u32 patch)
 {
 	UIAudio_StopForSharedBufferUse();
 	UINT  ret;
@@ -4985,10 +4981,14 @@ u32 IWRAM_CODE Loadfile2PSRAM(TCHAR *filename)
 	res = f_open(&gfile, filename, FA_READ);
 	if(res == FR_OK)
 	{
-		filesize = f_size(&gfile);
+		if(f_size(&gfile) != expected_size || !expected_size || expected_size > 0x4000000)
+		{
+			f_close(&gfile);
+			return 1;
+		}
+		filesize = expected_size;
 		if(!launcher_launch_screen_active) Clear(0, 160 - 15, 240, 15, gl_color_cheat_black, 1);
 		ShowbootProgress(gl_copying_data);
-		f_lseek(&gfile, 0x0000);
 		for(blocknum=0x0000;blocknum<filesize;blocknum+=0x20000)
 		{
             if(!launcher_launch_screen_active)
@@ -5006,7 +5006,7 @@ u32 IWRAM_CODE Loadfile2PSRAM(TCHAR *filename)
 				return 1;
 			}
 
-			if((gl_reset_on==1) || (gl_rts_on==1) || (gl_sleep_on==1) || (gl_cheat_on==1))
+			if(patch)
 			{
 				PatchInternal((u32*)pReadCache,0x20000,blocknum);
 			}
@@ -5031,6 +5031,50 @@ u32 IWRAM_CODE Loadfile2PSRAM(TCHAR *filename)
 		return 1;
 	}
 
+}
+/* The FPGA reports completion, but not whether the expected ROM arrived.
+   Check the header and samples from the middle and end before patching it. */
+static u32 Blue_LoadNativeSD(TCHAR *name, u32 size, u32 patch)
+{
+    enum { SAMPLE_BYTES = 32 };
+    u16 expected[3][SAMPLE_BYTES / sizeof(u16)];
+    u32 offsets[3] = {0, (size / 2) & ~(SAMPLE_BYTES - 1u),
+        size < SAMPLE_BYTES ? 0 : (size - SAMPLE_BYTES) & ~(SAMPLE_BYTES - 1u)};
+    FIL file;
+    UINT got;
+    u32 i, j;
+    if(size < SAMPLE_BYTES || f_chdir(currentpath) != FR_OK || f_open(&file, name, FA_READ) != FR_OK)
+        return 1;
+    if(f_size(&file) != size)
+    {
+        f_close(&file);
+        return 1;
+    }
+    for(i = 0; i < 3; i++)
+        if(f_lseek(&file, offsets[i]) != FR_OK ||
+           f_read(&file, expected[i], SAMPLE_BYTES, &got) != FR_OK || got != SAMPLE_BYTES)
+        {
+            f_close(&file);
+            return 1;
+        }
+    if(f_close(&file) != FR_OK) return 1;
+
+    SetPSRampage(0);
+    Send_FATbuffer(FAT_table_buffer, 0);
+    for(i = 0; i < 3; i++)
+    {
+        const vu16 *sample = PSRAMBase_S98 + (offsets[i] & 0x7fffff);
+        SetPSRampage((offsets[i] >> 23) << 12);
+        for(j = 0; j < SAMPLE_BYTES / sizeof(u16); j++)
+            if(sample[j] != expected[i][j]) break;
+        if(j < SAMPLE_BYTES / sizeof(u16)) break;
+    }
+    SetPSRampage(0);
+    if(i == 3) return 0;
+
+    FAT_table_buffer[0x1f4 / 4] = SET_PARAMETER_MODE;
+    Send_FATbuffer(FAT_table_buffer, 1);
+    return Loadfile2PSRAM(name, size, patch);
 }
 //---------------------------------------------------------------------------------
 void CheckLanguage(void)
@@ -16648,7 +16692,7 @@ load_file:
 
 			ShowbootProgress(gl_loading_game);
 
-				Send_FATbuffer(FAT_table_buffer,0);
+				if(Blue_LoadNativeSD(pfilename, gamefilesize, 0)) { Show_error_num(1); return 0; }
 				GBApatch_Cleanrom(PSRAMBase_S98,gamefilesize);
                 Slot_ArmReturn("", 3, 0);
 				//wait_btn();
@@ -16658,6 +16702,7 @@ load_file:
 				reset_choice = gl_toggle_reset;
 					Launcher_FinishLaunch();
 					Set_64MROM_flag(flag_64MBrom);
+					REG_IME = 0;
 			SetRompageWithHardReset(0x400,reset_choice);
 			break;
 	case 1://PSRAM BOOT WITH ADDON
@@ -16674,7 +16719,7 @@ load_file:
 						iTrimSize = large_patch_offset;
 						FAT_table_buffer[0x1F4/4] = SET_PARAMETER_MODE;
 						Send_FATbuffer(FAT_table_buffer,1);
-						if(Loadfile2PSRAM(pfilename)) { Show_error_num(1); return 0; }
+						if(Loadfile2PSRAM(pfilename, gamefilesize, 1)) { Show_error_num(1); return 0; }
 						if(gl_rts_on == 1 && !Check_RTS(pfilename)) { Show_error_num(6); return 0; }
 						goto apply_blue_addons;
 					}
@@ -16692,17 +16737,21 @@ load_file:
 					have_pat = Check_pat(pfilename);
 					if(have_pat==1)
 					{
-				Send_FATbuffer(FAT_table_buffer,0);//Loading rom
+						if(Blue_LoadNativeSD(pfilename, gamefilesize, 1)) { Show_error_num(1); return 0; }
 					}
 					else //(have_pat==0)
 					{
 						f_chdir(currentpath);//return to game folder
 						//get the location for the patch
 						UIAudio_StopForSharedBufferUse();
+						u32 tail = (gamefilesize - 1) & 0xFFFE0000;
 						res = f_open(&gfile,pfilename, FA_READ);
-						f_lseek(&gfile, (gamefilesize-1)&0xFFFE0000);
-						f_read(&gfile, pReadCache, 0x20000, (UINT*)&ret);
-						f_close(&gfile);
+						if(res != FR_OK) { Show_error_num(1); return 0; }
+						memset(pReadCache, 0xff, 0x20000);
+						int read_ok = f_lseek(&gfile, tail) == FR_OK &&
+							f_read(&gfile, pReadCache, gamefilesize - tail, (UINT*)&ret) == FR_OK &&
+							ret == gamefilesize - tail;
+						if(f_close(&gfile) != FR_OK || !read_ok) { Show_error_num(1); return 0; }
 						SetTrimSize(pReadCache,gamefilesize,0x20000,0x0,SAVEMODE);
 
 						if((gl_engine_sel==0) || (gl_select_lang == 0xE2E2))
@@ -16710,7 +16759,7 @@ load_file:
 							get_find:
 					FAT_table_buffer[0x1F4/4] = SET_PARAMETER_MODE;
 							Send_FATbuffer(FAT_table_buffer,1);
-					res=Loadfile2PSRAM(pfilename);
+							if(Loadfile2PSRAM(pfilename, gamefilesize, 1)) { Show_error_num(1); return 0; }
 							ShowbootProgress(gl_make_pat);
 							Make_pat_file(pfilename);
 						}
@@ -16719,7 +16768,7 @@ load_file:
 							res=use_internal_engine(GAMECODE);
 							if(res == 1)
 							{
-								Send_FATbuffer(FAT_table_buffer,0);//Loading rom
+								if(Blue_LoadNativeSD(pfilename, gamefilesize, 1)) { Show_error_num(1); return 0; }
 							}
 							else
 							{
@@ -16733,7 +16782,7 @@ load_file:
             DSStyle_ArmReturn(0, pfilename);
 				}
 				else{//no select switch ,CLEAN
-					Send_FATbuffer(FAT_table_buffer,0);//Loading rom
+					if(Blue_LoadNativeSD(pfilename, gamefilesize, 0)) { Show_error_num(1); return 0; }
 				}
 				//wait_btn();
 			if(key_L)
@@ -16742,6 +16791,7 @@ load_file:
 				reset_choice = gl_toggle_reset;
 			Launcher_FinishLaunch();
 			Set_64MROM_flag(flag_64MBrom);
+			REG_IME = 0;
 			SetRompageWithHardReset(0x400,reset_choice);
 		break;
 	case 2://WRITE TO NOR CLEAN

@@ -13,17 +13,20 @@ static struct {
 } launcher_spinner EWRAM_BSS;
 static void Launcher_GetLaunchIndicatorRect(int *x, int *y, int *w, int *h);
 
-static void Launcher_LaunchVBlank(void)
+static void IWRAM_CODE Launcher_LaunchVBlank(void)
 {
     u32 i;
     if(!launcher_launch_screen_active) return;
     launcher_spinner.frame++;
     if(launcher_spinner.frame < 6) return;
+    if(launcher_spinner.frame == 36) launcher_spinner.frame = 6;
     LAUNCHER_SPINNER_OAM[0] = launcher_spinner.y;
     for(i = 0; i < 6; i++)
     {
-        u32 step = (launcher_spinner.frame + 30 - i * 5) % 30;
-        u16 shade = step * 20 / 30;
+        int step = launcher_spinner.frame - (int)i * 5;
+        if(step < 0) step += 30;
+        if(step >= 30) step -= 30;
+        u16 shade = (step * 171) >> 8;
         u16 grey = launcher_spinner.dark ? 29 - shade : 8 + shade;
         LAUNCHER_SPINNER_PALETTE[i + 1] = RGB(grey, grey, grey);
     }

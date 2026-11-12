@@ -1,10 +1,12 @@
-# DS Style v8.1 Blue Test 5
+# DS Style v8.1 Blue Test 6
 
-**Hardware test for EZODE-B.** Back up your SD card. Use disposable games and saves for NOR testing.
+**Experimental, for EZODE-B only.** Use a spare SD card or back up your card and saves first.
 
-**Install:** Extract the ZIP to the SD root: `ezbluekernel.bin` and `SYSTEM/` go side by side. Games can stay where they are. To use a stock save, copy it from `SAVER/` to `SYSTEM/SAVER/`. In Mode A, hold **R** while powering on. Do not interrupt flashing. If you need a firmware update, use the official Blue kernel separately; DS Style does not update firmware.
+**Install:** Copy the contents of `SD Card` to your SD root: `ezbluekernel.bin` and `SYSTEM/` go side by side. In Mode A, hold **R** while powering on. Do not interrupt flashing. To test a stock save, copy it from `SAVER/` to `SYSTEM/SAVER/`.
 
-**Test:** Try rapid scrolling in both carousels and List + Art, SD boot and saves, large ROMs with add-ons, and NOR write/delete and save states. For new NOR states, exit to DS Style before powering off. For **Load style**, put a copy of the Test 5 kernel in `SYSTEM/KERNELS/`.
+**Test:** With Animations on, move both ways in the horizontal and vertical carousels on SD and NOR. Then Clean boot the same SD game several times and load a copy of your in-game save. Try Boot with add-ons too. Report any remaining failures, including the game and launch option used.
+
+**What changed:** Fixed carousel memory alignment. SD launches now check samples of the loaded ROM and retry through a checked reader if those samples don't match. NOR writing and game saves are unchanged. No firmware updater is included.
 
 **Uninstall:** Put the [official Blue `ezbluekernel.bin`](https://www.ezflashomega.com/pages/EZ-Flash-Omega-Definitive-Edition-B-Downloads.html) at the SD root, replacing the test file. Flash with **R** and restore your SD backup. Reflashing does not undo NOR changes.
 

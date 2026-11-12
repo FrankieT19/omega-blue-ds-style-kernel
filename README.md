@@ -4,11 +4,11 @@ DS Style is a Nintendo DS-inspired kernel for the EZ-FLASH Omega family.
 This repository is for the **blue PCB marked EZODE-B** only. It is not for
 the earlier Omega Definitive Edition Rev A or Rev B, or the original Omega.
 
-**v8.1 Blue Test 5 is experimental and has not yet been verified on a
-physical EZODE-B.** Use a spare SD card, back up your saves and NOR data, and
-keep the official Blue kernel on a separate card before installing.
+**v8.1 Blue Test 6 is experimental.** Test 5 installed and ran NOR games on
+hardware; Test 6 addresses the reported carousel and SD launch issues and
+still needs hardware confirmation. Use a spare SD card or back up your data.
 
-- [Download Blue Test 5](https://github.com/FrankieT19/omega-blue-ds-style-kernel/releases/tag/v8.1-blue-test.5)
+- [Download Blue Test 6](https://github.com/FrankieT19/omega-blue-ds-style-kernel/releases/tag/v8.1-blue-test.6)
 - [Installation, testing and uninstallation](INSTALL.md)
 - [DS Style project page](https://frankiet19.github.io/omega-de-ds-style-kernel/project/)
 - [Original Omega Definitive Edition](https://github.com/FrankieT19/omega-de-ds-style-kernel)
@@ -42,4 +42,5 @@ copies under `SYSTEM/PLUG/BLUE` as `txt.bin`, `md.bin` and `markdown.bin`.
 DS Style by FrankieT19. Original Blue and Omega kernel source by EZ-FLASH.
 PogoShell integration in DS Style was inherited from Simple by Sterophonick.
 Thai language support by aidiadayo. Contributions by Merkin and tindmackey.
-See [Notices](NOTICE.md) for source and licence details.
+See [LICENSE](LICENSE) and [GPL-3.0](licenses/GPL-3.0.txt). The source for
+the bundled GB/GBC emulator is in `emusrc/ds-style`.

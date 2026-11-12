@@ -1,5 +1,11 @@
 # Changelog
 
+## v8.1 Blue Test 6
+
+- Word-align the animation workspace used by both carousels.
+- Check sampled ROM data after the fast SD copy and retry through the checked reader on mismatch.
+- Keep launch interrupts in IWRAM and stop on failed SD reads before patching or booting.
+
 ## v8.1 Blue Test 5
 
 - Restore the original DS Style bitmap assets and DMA drawing paths.

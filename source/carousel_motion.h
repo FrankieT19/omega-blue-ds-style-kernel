@@ -16,6 +16,8 @@ typedef struct
 #define LAUNCHER_MOTION_WORK ((LauncherMotionWork*)((u8*)&launcher_thumbnail_workspace + 0x4C40))
 typedef char LauncherMotionIncomingFits[
     (sizeof(launcher_thumbnail_workspace) >= 0x4C40 + sizeof(LauncherMotionWork)) ? 1 : -1];
+typedef char LauncherMotionWorkAligned[
+    (__alignof__(launcher_thumbnail_workspace) >= __alignof__(LauncherMotionWork)) ? 1 : -1];
 
 /* Bitmap mode leaves this sprite VRAM unused. Execute the compositor here:
    its 16-bit bus is substantially faster than EWRAM instruction fetches. All
@@ -26,7 +28,7 @@ extern const u8 __start_motion_code[], __stop_motion_code[];
 static u32 Launcher_MotionInstallCode(void)
 {
     u32 size = __stop_motion_code - __start_motion_code;
-    if(size > 0x18000 - LAUNCHER_MOTION_CODE_ADDRESS) return 0;
+    if(size > 0x06017800 - LAUNCHER_MOTION_CODE_ADDRESS) return 0;
     dmaCopy(__start_motion_code, (void*)LAUNCHER_MOTION_CODE_ADDRESS, size);
     return 1;
 }

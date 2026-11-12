@@ -111,6 +111,11 @@ def build(sdk, flashable):
     run(gcc,*arch,"-specs=gba.specs","-Wl,--gc-sections,-Map,"+str(output/"ezbluekernel.map"),
         *sorted(objects),"-L",gba/"lib","-lmm","-lgba","-o",elf)
     regions = symbols(nm, elf)
+    if regions["launcher_thumbnail_workspace"] & 3:
+        raise RuntimeError("Carousel animation workspace is not word-aligned")
+    for callback in ("Launcher_LaunchVBlank", "UIAudio_Timer1IRQ"):
+        if not 0x03000000 <= regions[callback] < 0x03008000:
+            raise RuntimeError(f"{callback} must remain in IWRAM during SD transfer")
     if regions["__eheap_start"] >= 0x0203f800 or regions["__iwram_overlay_end"] >= 0x03006f00:
         raise RuntimeError("Kernel leaves too little RAM for its boot and IRQ scratch")
     patch = symbols(nm, output / "gba_rts_patch.o")
