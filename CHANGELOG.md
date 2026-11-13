@@ -1,5 +1,9 @@
 # Changelog
 
+## v8.2 Blue Test 7
+
+- Added rebindable in-game menu and exit shortcuts.
+
 ## v8.1 Blue Test 6
 
 - Word-align the animation workspace used by both carousels.

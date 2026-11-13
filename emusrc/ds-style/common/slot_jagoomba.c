@@ -1,4 +1,4 @@
-/* slot. advance integration for the pinned Jagoomba Color v0.5 source. */
+/* DS Style integration for the pinned Jagoomba Color v0.5 source. */
 #include "includes.h"
 #include "slot_return.h"
 #include "slot_emulator_controls.h"
@@ -9,7 +9,7 @@ EWRAM_BSS volatile unsigned Slot_JagoombaVBlanks;
 EWRAM_BSS volatile unsigned Slot_JagoombaFadeRequested;
 static EWRAM_BSS volatile unsigned slot_fade_clock,slot_fade_level;
 static EWRAM_BSS SlotEmulatorControls slot_keys;
-static EWRAM_BSS unsigned slot_hold_enabled,slot_exit_requested;
+static EWRAM_BSS unsigned slot_exit_button,slot_menu_buttons,slot_exit_requested;
 #ifdef SLOT_EMULATOR_TEST
 EWRAM_BSS SlotReturnRecord Slot_JagoombaTestRecord;
 EWRAM_BSS volatile unsigned Slot_JagoombaTestPage,Slot_JagoombaTestExit,Slot_JagoombaTestMenus;
@@ -47,7 +47,10 @@ void Slot_JagoombaInit(void)
 {
     SlotReturnRecord record;
     unsigned armed=slot_read_context(&record);
-    slot_hold_enabled=1;
+    slot_exit_button=armed ? (record.options>>DS_RETURN_EXIT_SHIFT)&DS_RETURN_KEY_MASK : 0;
+    slot_menu_buttons=armed ? (record.options>>DS_RETURN_MENU_SHIFT)&DS_RETURN_KEY_MASK : 0;
+    if(!slot_exit_button)slot_exit_button=4;
+    if(!slot_menu_buttons)slot_menu_buttons=12;
     Slot_JagoombaBlend=armed && !(record.options & DS_RETURN_DARK) ? 0xbf : 0xff;
     memset(&slot_keys,0,sizeof(slot_keys));slot_exit_requested=0;
     Slot_JagoombaVBlanks=0;main_ui_selection=-1;
@@ -55,7 +58,7 @@ void Slot_JagoombaInit(void)
 }
 unsigned Slot_JagoombaInput(unsigned held)
 {
-    unsigned action=Slot_EmulatorKeys(&slot_keys,held,Slot_JagoombaVBlanks,slot_hold_enabled);
+    unsigned action=Slot_EmulatorKeys(&slot_keys,held,Slot_JagoombaVBlanks,slot_exit_button,slot_menu_buttons);
     if(action==2)slot_exit_requested=1;
     return action;
 }
@@ -69,7 +72,7 @@ unsigned Slot_JagoombaTakeExit(void)
 }
 void Slot_JagoombaResume(void)
 {
-    memset(&slot_keys,0,sizeof(slot_keys));slot_keys.blocked=!!((~REG_P1)&12);
+    memset(&slot_keys,0,sizeof(slot_keys));slot_keys.blocked=!!((~REG_P1)&(slot_exit_button|slot_menu_buttons));
 }
 void Slot_JagoombaFadeBlack(void)
 {

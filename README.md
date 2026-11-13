@@ -4,11 +4,9 @@ DS Style is a Nintendo DS-inspired kernel for the EZ-FLASH Omega family.
 This repository is for the **blue PCB marked EZODE-B** only. It is not for
 the earlier Omega Definitive Edition Rev A or Rev B, or the original Omega.
 
-**v8.1 Blue Test 6 is experimental.** Test 5 installed and ran NOR games on
-hardware; Test 6 addresses the reported carousel and SD launch issues and
-still needs hardware confirmation. Use a spare SD card or back up your data.
+**v8.2 Blue Test 7 is experimental.** This build adds configurable in-game shortcuts. The Blue port still needs hardware testing. Use a spare SD card or back up your data.
 
-- [Download Blue Test 6](https://github.com/FrankieT19/omega-blue-ds-style-kernel/releases/tag/v8.1-blue-test.6)
+- [Download Blue Test 7](https://github.com/FrankieT19/omega-blue-ds-style-kernel/releases/tag/v8.2-blue-test.7)
 - [Installation, testing and uninstallation](INSTALL.md)
 - [DS Style project page](https://frankiet19.github.io/omega-de-ds-style-kernel/project/)
 - [Original Omega Definitive Edition](https://github.com/FrankieT19/omega-de-ds-style-kernel)
@@ -16,7 +14,7 @@ still needs hardware confirmation. Use a spare SD card or back up your data.
 
 The Blue port uses the Blue mapper, firmware layout, save handling, and NOR
 allocation scheme from EZ-FLASH. The DS Style launcher, artwork views and
-animations are based on v8.1. See [the changelog](CHANGELOG.md) for the test
+animations are based on DS Style v8.2. See [the changelog](CHANGELOG.md) for the test
 build's scope and limitations.
 
 ## Build
